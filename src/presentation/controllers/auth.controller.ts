@@ -3,9 +3,6 @@ import { CustomError, LoginUserDto, RegisterUserDto } from "../../domain";
 import { AuthService } from "../services/auth/auth.service";
 
 
-
-
-
 export class AuthController {
 
     // Inyecciones de dependencias

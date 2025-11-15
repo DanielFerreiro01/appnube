@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AuthController } from '../controllers';
 
 import { envs } from '../../config';
-import { AuthService, EmailService } from '../../application/auth';
+import { AuthService, EmailService } from '../../presentation/services/auth';
 
 
 
