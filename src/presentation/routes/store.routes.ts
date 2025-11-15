@@ -1,18 +1,17 @@
 import { Router } from 'express';
 import { StoreService } from '../services/store/store.service';
 import { StoreController } from '../controllers/store.controller';
-
-
+import { TiendanubeService } from '../services/tiendanube/tiendanube.service';
 
 
 export class StoreRoutes {
 
   static get routes(): Router {
     
-
     const storeService = new StoreService();
+    const tiendanubeService = new TiendanubeService();
 
-    const controller = new StoreController( storeService );
+    const controller = new StoreController( storeService, tiendanubeService );
 
     const router = Router();
     
