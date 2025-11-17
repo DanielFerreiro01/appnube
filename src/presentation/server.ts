@@ -38,10 +38,11 @@ export class Server {
     this.app.use( this.routes );
 
     //* SPA /^\/(?!api).*/  <== Únicamente si no empieza con la palabra api
-    this.app.get('*', (req, res) => {
-      const indexPath = path.join( __dirname + `../../../${ this.publicPath }/index.html` );
+    this.app.get(/^\/(?!api).*/, (req, res) => {
+      const indexPath = path.join(__dirname, `../../../${this.publicPath}/index.html`);
       res.sendFile(indexPath);
     });
+
     
 
     this.serverListener = this.app.listen(this.port, () => {

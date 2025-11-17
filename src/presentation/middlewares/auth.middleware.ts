@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { JWTAdapter } from "../../config";
-import { UserModel } from "../../data/UserModel";
+import { UserModel } from "../../data/mongo/models/user.model";
 import { UserEntity } from "../../domain";
 
 

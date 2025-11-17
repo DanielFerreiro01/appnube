@@ -52,7 +52,7 @@ storeSchema.pre("save", function (next) {
 storeSchema.set("toJSON", {
   virtuals: true,
   versionKey: false,
-  transform: function (doc, ret) {
+  transform: function (doc, ret: Record<string, any>) {
     delete ret._id;
     // No exponer el accessToken en las respuestas JSON
     delete ret.accessToken;

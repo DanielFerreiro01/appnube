@@ -1,4 +1,4 @@
-import { CustomError } from "../../errors/custom.error.js";
+import { CustomError } from "../../errors/custom.error";
 
 export class StoreEntity {
   constructor(
