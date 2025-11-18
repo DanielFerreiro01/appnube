@@ -86,7 +86,7 @@ export class TiendanubeOAuthService {
           method: "GET",
           headers: {
             Authentication: `bearer ${accessToken}`,
-            "User-Agent": "YourApp (contact@yourapp.com)",
+            "User-Agent": "AppNube (contact@yourapp.com)",
             "Content-Type": "application/json",
           },
         }
@@ -149,10 +149,10 @@ export class TiendanubeOAuthService {
         console.log(`Creating new store for Tiendanube ID ${tokenData.user_id}`);
         
         store = new StoreModel({
-          name: storeInfo.name?.es || storeInfo.name || `Store ${tokenData.user_id}`,
-          tiendanubeUrl: storeInfo.url || `https://store-${tokenData.user_id}.mitiendanube.com`,
-          description: storeInfo.description?.es || storeInfo.description,
-          logo: storeInfo.logo,
+          name: storeInfo.name?.es ?? storeInfo.name ?? `Store ${tokenData.user_id}`,
+          tiendanubeUrl: storeInfo.url ?? `https://store-${tokenData.user_id}.mitiendanube.com`,
+          description: storeInfo.description?.es ?? "",
+          logo: storeInfo.logo ?? "",
           storeId: tokenData.user_id,
           accessToken: tokenData.access_token,
           categories: [],
@@ -193,7 +193,7 @@ export class TiendanubeOAuthService {
           method: "GET",
           headers: {
             Authentication: `bearer ${accessToken}`,
-            "User-Agent": "YourApp (contact@yourapp.com)",
+            "User-Agent": "AppNube (contact@yourapp.com)",
           },
         }
       );

@@ -24,9 +24,6 @@ async function main() {
 
     const api = require('./test/test-api.js');
 
-    // Test básicos
-    await api.testRegister();
-    await api.testCreateStore();
     await api.testListStores();
 
     // Ver estado

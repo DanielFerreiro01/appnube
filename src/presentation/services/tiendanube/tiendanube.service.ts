@@ -1,14 +1,11 @@
 import { CustomError } from "../../../domain";
 import { StoreModel, ProductModel, VariantModel, ImageModel } from "../../../data/mongo";
 
-/**
- * Interface para los productos que devuelve la API de Tiendanube
- */
 interface TiendanubeProduct {
   id: number;
   name: { es: string };
   description: { es: string };
-  handle: string;
+  handle: string; // Permalink único del producto
   attributes: Array<{ es: string }>;
   published: boolean;
   free_shipping: boolean;
@@ -30,20 +27,14 @@ interface TiendanubeProduct {
   created_at: string;
   updated_at: string;
   tags: string;
+  canonical_url?: string; // URL completa del producto
 }
 
-/**
- * Servicio para integración con Tiendanube API
- */
 export class TiendanubeService {
   constructor() {}
 
   /**
-   * Obtiene productos de Tiendanube usando su API
-   * @param storeId - ID de la tienda en Tiendanube
-   * @param accessToken - Token de acceso para la API
-   * @param page - Número de página (default: 1)
-   * @returns Array de productos de Tiendanube
+   * Obtiene productos de Tiendanube con manejo robusto de errores
    */
   async fetchProducts(
     storeId: number,
@@ -57,7 +48,7 @@ export class TiendanubeService {
           method: "GET",
           headers: {
             Authentication: `bearer ${accessToken}`,
-            "User-Agent": "MyApp (contact@myapp.com)",
+            "User-Agent": "AppNube (daniiferreiro26@gmail.com)",
             "Content-Type": "application/json",
           },
         }
@@ -65,6 +56,18 @@ export class TiendanubeService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        
+        // Manejo específico de errores comunes
+        if (response.status === 401) {
+          throw CustomError.unauthorized('Invalid or expired access token');
+        }
+        if (response.status === 404) {
+          throw CustomError.notFound('Store not found in Tiendanube');
+        }
+        if (response.status === 429) {
+          throw CustomError.badRequest('Rate limit exceeded. Please try again later');
+        }
+        
         throw CustomError.badRequest(
           `Tiendanube API error: ${response.status} ${response.statusText} - ${errorText}`
         );
@@ -81,13 +84,10 @@ export class TiendanubeService {
   }
 
   /**
-   * Sincroniza productos de Tiendanube con la base de datos local
-   * @param mongoStoreId - ID de la tienda en MongoDB
-   * @returns Resultado de la sincronización
+   * Sincroniza productos con validación mejorada de handle/permalink
    */
   async syncProducts(mongoStoreId: string) {
     try {
-      // Obtener la tienda de MongoDB
       const store = await StoreModel.findById(mongoStoreId);
 
       if (!store) {
@@ -96,20 +96,20 @@ export class TiendanubeService {
 
       if (!store.storeId || !store.accessToken) {
         throw CustomError.badRequest(
-          "Store does not have Tiendanube credentials configured. Please add storeId and accessToken."
+          "Store does not have Tiendanube credentials. Please complete OAuth installation first."
         );
       }
 
       let page = 1;
       let hasMoreProducts = true;
       let totalSynced = 0;
-      const errors: string[] = [];
+      const errors: Array<{ productId: number; error: string }> = [];
 
-      console.log(`Starting sync for store ${store.storeId} (${store.name})`);
+      console.log(`[SYNC] Starting sync for store ${store.storeId} (${store.name})`);
 
       while (hasMoreProducts) {
         try {
-          console.log(`Fetching page ${page}...`);
+          console.log(`[SYNC] Fetching page ${page}...`);
           
           const products = await this.fetchProducts(
             store.storeId,
@@ -118,38 +118,44 @@ export class TiendanubeService {
           );
 
           if (products.length === 0) {
-            console.log("No more products to sync");
+            console.log("[SYNC] No more products to sync");
             hasMoreProducts = false;
             break;
           }
 
-          console.log(`Processing ${products.length} products from page ${page}`);
+          console.log(`[SYNC] Processing ${products.length} products from page ${page}`);
 
-          // Procesar cada producto
           for (const tnProduct of products) {
             try {
               await this.saveProduct(store.storeId, tnProduct);
               totalSynced++;
             } catch (error) {
-              const errorMsg = `Error saving product ${tnProduct.id}: ${error}`;
-              console.error(errorMsg);
-              errors.push(errorMsg);
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              console.error(`[SYNC] Error saving product ${tnProduct.id}:`, errorMsg);
+              errors.push({
+                productId: tnProduct.id,
+                error: errorMsg,
+              });
             }
           }
 
           page++;
 
-          // Limitar a 10 páginas por seguridad (500 productos)
-          // Esto previene timeouts en tiendas con muchos productos
-          if (page > 10) {
-            console.log("Reached page limit (10 pages = 500 products)");
+          // Límite de seguridad (ajustable según necesidad)
+          if (page > 20) {
+            console.log("[SYNC] Reached page limit (20 pages = 1000 products)");
             hasMoreProducts = false;
           }
         } catch (error) {
-          console.error(`Error fetching page ${page}:`, error);
+          console.error(`[SYNC] Error fetching page ${page}:`, error);
           hasMoreProducts = false;
         }
       }
+
+      // Actualizar última sincronización
+      await StoreModel.findByIdAndUpdate(mongoStoreId, {
+        lastSync: new Date(),
+      });
 
       return {
         message: "Products synced successfully",
@@ -164,16 +170,35 @@ export class TiendanubeService {
   }
 
   /**
-   * Guarda o actualiza un producto en la base de datos
-   * @param storeId - ID de Tiendanube
-   * @param tnProduct - Producto desde la API de Tiendanube
+   * Guarda producto con validación mejorada de handle único
    */
   private async saveProduct(storeId: number, tnProduct: TiendanubeProduct) {
     try {
-      // Calcular precio base (tomar el de la primera variante)
       const basePrice = parseFloat(tnProduct.variants[0]?.price || "0");
+      
+      // Construir permalink completo
+      const permalink = tnProduct.canonical_url || 
+                       `https://${storeId}.mitiendanube.com/productos/${tnProduct.handle}`;
 
-      // Actualizar o crear el producto
+      // Validar handle único
+      let finalHandle = tnProduct.handle;
+      if (finalHandle) {
+        const existingProduct = await ProductModel.findOne({
+          storeId,
+          handle: finalHandle,
+          productId: { $ne: tnProduct.id }, // Excluir el producto actual
+        });
+
+        if (existingProduct) {
+          console.warn(
+            `[SYNC] Handle collision detected for product ${tnProduct.id}. ` +
+            `Handle "${finalHandle}" already used by product ${existingProduct.productId}`
+          );
+          // Estrategia: usar productId como sufijo para garantizar unicidad
+          finalHandle = `${finalHandle}-${tnProduct.id}`;
+        }
+      }
+
       await ProductModel.findOneAndUpdate(
         { storeId, productId: tnProduct.id },
         {
@@ -182,18 +207,20 @@ export class TiendanubeService {
           name: tnProduct.name.es || tnProduct.name,
           description: tnProduct.description?.es || tnProduct.description || "",
           price: basePrice,
-          permalink: tnProduct.handle,
+          handle: finalHandle,
+          permalink,
           published: tnProduct.published,
           tags: tnProduct.tags ? tnProduct.tags.split(",").map(t => t.trim()) : [],
           mainImage: tnProduct.images[0]?.src,
           createdAtTN: new Date(tnProduct.created_at),
           updatedAtTN: new Date(tnProduct.updated_at),
           syncedAt: new Date(),
+          syncError: null, // Limpiar error previo si existía
         },
         { upsert: true, new: true }
       );
 
-      // Guardar variantes si existen
+      // Guardar variantes
       if (tnProduct.variants && tnProduct.variants.length > 0) {
         for (const variant of tnProduct.variants) {
           await VariantModel.findOneAndUpdate(
@@ -213,7 +240,7 @@ export class TiendanubeService {
         }
       }
 
-      // Guardar imágenes si existen
+      // Guardar imágenes
       if (tnProduct.images && tnProduct.images.length > 0) {
         for (const image of tnProduct.images) {
           await ImageModel.findOneAndUpdate(
@@ -231,18 +258,29 @@ export class TiendanubeService {
         }
       }
     } catch (error) {
-      console.error(`Error saving product ${tnProduct.id}:`, error);
+      // Registrar error en el producto para debugging
+      await ProductModel.findOneAndUpdate(
+        { storeId, productId: tnProduct.id },
+        {
+          syncError: error instanceof Error ? error.message : String(error),
+          syncedAt: new Date(),
+        },
+        { upsert: true }
+      );
+      
       throw error;
     }
   }
 
   /**
-   * Obtiene productos locales con paginación
+   * Busca productos por nombre o tags
    * @param storeId - ID de Tiendanube
+   * @param searchTerm - Término de búsqueda
    * @param page - Número de página
-   * @param limit - Cantidad de productos por página
-   * @returns Productos con paginación
+   * @param limit - Cantidad de resultados por página
+   * @returns Productos que coinciden con la búsqueda
    */
+
   async getLocalProducts(
     storeId: number,
     page: number = 1,
@@ -456,4 +494,5 @@ export class TiendanubeService {
       );
     }
   }
+
 }

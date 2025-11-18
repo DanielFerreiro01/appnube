@@ -8,6 +8,12 @@ export class StoreResponseDTO {
     public readonly description?: string,
     public readonly logo?: string,
     public readonly categories?: string[],
+    // Nuevos campos para OAuth
+    public readonly storeId?: number, // ID de Tiendanube
+    public readonly accessToken?: string, // Token OAuth
+    public readonly isConnected?: boolean, // Si tiene token válido
+    public readonly installedAt?: Date,
+    public readonly lastSync?: Date,
   ) {}
 
   static fromEntity(entity: StoreEntity) {
@@ -17,7 +23,12 @@ export class StoreResponseDTO {
       entity.tiendanubeUrl,
       entity.description,
       entity.logo,
-      entity.categories
+      entity.categories,
+      entity.storeId,
+      entity.accessToken,
+      entity.isConnected,
+      entity.installedAt,
+      entity.lastSync,
     );
   }
 }
