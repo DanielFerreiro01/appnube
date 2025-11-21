@@ -1,5 +1,7 @@
 import { CustomError } from "../../../domain";
 import { StoreModel } from "../../../data/mongo";
+import { TiendanubeWebhookService } from "./tiendanube-webhooks.service";
+
 
 /**
  * Interfaz para la respuesta del token de Tiendanube
@@ -144,6 +146,7 @@ export class TiendanubeOAuthService {
         }
 
         await store.save();
+
       } else {
         // Crear nueva tienda
         console.log(`Creating new store for Tiendanube ID ${tokenData.user_id}`);
@@ -160,6 +163,11 @@ export class TiendanubeOAuthService {
 
         await store.save();
       }
+
+      await TiendanubeWebhookService.registerAll(
+        tokenData.user_id,
+        tokenData.access_token
+      );
 
       return {
         store: {

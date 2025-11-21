@@ -25,7 +25,12 @@ export class Server {
   
   
   async start() {
-    
+
+    //* RAW SOLO para webhooks obligatorios
+    this.app.use(
+      "/api/webhooks/tiendanube/mandatory",
+      express.raw({ type: "application/json" })
+    );
 
     //* Middlewares
     this.app.use( express.json() ); // raw
