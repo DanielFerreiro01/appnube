@@ -57,12 +57,15 @@ export class TiendanubeService {
       if (!response.ok) {
         const errorText = await response.text();
         
+        // ✅ FIX: Si es 404, puede ser que no haya más páginas
+        if (response.status === 404) {
+          console.log(`[SYNC] No more products on page ${page} (404 - end of pagination)`);
+          return []; // ← Retornar array vacío, NO es error
+        }
+        
         // Manejo específico de errores comunes
         if (response.status === 401) {
           throw CustomError.unauthorized('Invalid or expired access token');
-        }
-        if (response.status === 404) {
-          throw CustomError.notFound('Store not found in Tiendanube');
         }
         if (response.status === 429) {
           throw CustomError.badRequest('Rate limit exceeded. Please try again later');

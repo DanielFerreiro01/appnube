@@ -2,69 +2,193 @@ import { Router } from "express";
 import { TiendanubeWebhookController } from "../controllers/tiendanube-webhook.controller";
 import { validateTiendanubeHmac } from "../middlewares/tiendanube-hmac.middleware";
 
+/**
+ * Rutas para webhooks de instalación y productos
+ * IMPORTANTE: Estas rutas usan express.raw() configurado en server.ts
+ */
 export class TiendanubeWebhookRoutes {
-
   static get routes(): Router {
     const router = Router();
 
-    // Webhooks obligatorios
+    // ============================================
+    // WEBHOOKS OBLIGATORIOS DE INSTALACIÓN
+    // ============================================
+
+    /**
+     * App Installed - Se llama cuando instalan tu app
+     * POST /api/webhooks/tiendanube/mandatory/app/installed
+     * NOTA: Se configura en Partners Panel, no por API
+     */
     router.post(
-      "/store/created",
+      "/app/installed",
       validateTiendanubeHmac,
-      TiendanubeWebhookController.onStoreCreated
+      TiendanubeWebhookController.onAppInstalled
     );
 
-    router.post(
-      "/store/updated",
-      validateTiendanubeHmac,
-      TiendanubeWebhookController.onStoreUpdated
-    );
-
+    /**
+     * App Uninstalled - Se llama cuando desinstalan tu app
+     * POST /api/webhooks/tiendanube/mandatory/app/uninstalled
+     */
     router.post(
       "/app/uninstalled",
       validateTiendanubeHmac,
       TiendanubeWebhookController.onAppUninstalled
     );
 
-    // router.post(
-    //   "/products/create",
-    //   validateTiendanubeHmac,
-    //   TiendanubeWebhookController.onProductCreate
-    // );
+    // ============================================
+    // WEBHOOKS DE PRODUCTOS (OPCIONAL PERO ÚTIL)
+    // ============================================
 
+    /**
+     * Product Create
+     * POST /api/webhooks/tiendanube/mandatory/product/create
+     */
     router.post(
-      "/products/update",
+      "/product/create",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onProductCreate
+    );
+
+    /**
+     * Product Update
+     * POST /api/webhooks/tiendanube/mandatory/product/update
+     */
+    router.post(
+      "/product/update",
       validateTiendanubeHmac,
       TiendanubeWebhookController.onProductUpdate
     );
 
-    // router.post(
-    //   "/products/delete",
-    //   validateTiendanubeHmac,
-    //   TiendanubeWebhookController.onProductDelete
-    // );
+    /**
+     * Product Delete
+     * POST /api/webhooks/tiendanube/mandatory/product/delete
+     */
+    router.post(
+      "/product/delete",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onProductDelete
+    );
 
-    // // Variantes
-    // router.post(
-    //   "/variants/create",
-    //   validateTiendanubeHmac,
-    //   TiendanubeWebhookController.onVariantCreate
-    // );
+    // ============================================
+    // WEBHOOKS DE VARIANTES
+    // ============================================
+    // NOTA: Tiendanube NO tiene webhooks específicos para variantes
+    // Los cambios en variantes disparan product/updated
+    // Dejamos estas rutas comentadas por si Tiendanube las agrega en el futuro
+    
+    /*
+    router.post(
+      "/variant/create",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onVariantCreate
+    );
 
-    // router.post(
-    //   "/variants/update",
-    //   validateTiendanubeHmac,
-    //   TiendanubeWebhookController.onVariantUpdate
-    // );
+    router.post(
+      "/variant/update",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onVariantUpdate
+    );
 
-    // router.post(
-    //   "/variants/delete",
-    //   validateTiendanubeHmac,
-    //   TiendanubeWebhookController.onVariantDelete
-    // );
+    router.post(
+      "/variant/delete",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onVariantDelete
+    );
+    */
 
+    // ============================================
+    // WEBHOOKS DE ÓRDENES (OPCIONAL PERO ÚTIL)
+    // ============================================
+
+    router.post(
+      "/order/created",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onOrderCreated
+    );
+
+    router.post(
+      "/order/updated",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onOrderUpdated
+    );
+
+    router.post(
+      "/order/paid",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onOrderPaid
+    );
+
+    // ============================================
+    // WEBHOOKS DE CATEGORÍAS (OPCIONAL)
+    // ============================================
+
+    router.post(
+      "/category/created",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onCategoryCreated
+    );
+
+    router.post(
+      "/category/updated",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onCategoryUpdated
+    );
+
+    router.post(
+      "/category/deleted",
+      validateTiendanubeHmac,
+      TiendanubeWebhookController.onCategoryDeleted
+    );
 
     return router;
   }
+}
 
+
+/**
+ * ============================================
+ * GDPR WEBHOOKS (SEPARADOS)
+ * ============================================
+ */
+import { WebhookController } from "../controllers/webhook.controller";
+
+export class WebhookRoutes {
+  static get routes(): Router {
+    const router = Router();
+
+    /**
+     * App Suspended (GDPR) - Borrar TODOS los datos de una tienda
+     * POST /api/webhooks/tiendanube/gdpr/app/suspended
+     * NOTA: Se configura en Partners Panel, no por API
+     */
+    router.post(
+      "/app/suspended",
+      validateTiendanubeHmac,
+      WebhookController.appSuspended
+    );
+
+    /**
+     * Customer Redact (GDPR) - Borrar datos de un cliente específico
+     * POST /api/webhooks/tiendanube/gdpr/customer/redact
+     * NOTA: Se configura en Partners Panel, no por API
+     */
+    router.post(
+      "/customer/redact",
+      validateTiendanubeHmac,
+      WebhookController.customerRedact
+    );
+
+    /**
+     * Customer Data Request (GDPR) - Devolver datos de un cliente
+     * POST /api/webhooks/tiendanube/gdpr/customer/data_request
+     * NOTA: Se configura en Partners Panel, no por API
+     */
+    router.post(
+      "/customer/data_request",
+      validateTiendanubeHmac,
+      WebhookController.customerDataRequest
+    );
+
+    return router;
+  }
 }
