@@ -296,53 +296,6 @@ export class TiendanubeWebhookController {
   }
 
   /**
-   * ORDER CREATED
-   */
-  static async onOrderCreated(req: Request, res: Response) {
-    try {
-      const { id, store_id, number } = req.body;
-      console.log("📦 ORDER CREATED:", { order_id: id, store_id, number });
-      
-      // TODO: Implementar lógica si necesitas trackear órdenes
-      
-      return res.status(200).json({ received: true });
-    } catch (error) {
-      console.error("❌ Error in onOrderCreated:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  }
-
-  /**
-   * ORDER UPDATED
-   */
-  static async onOrderUpdated(req: Request, res: Response) {
-    try {
-      const { id, store_id, status } = req.body;
-      console.log("🔄 ORDER UPDATED:", { order_id: id, store_id, status });
-      
-      return res.status(200).json({ received: true });
-    } catch (error) {
-      console.error("❌ Error in onOrderUpdated:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  }
-
-  /**
-   * ORDER PAID
-   */
-  static async onOrderPaid(req: Request, res: Response) {
-    try {
-      const { id, store_id, payment_status } = req.body;
-      console.log("💰 ORDER PAID:", { order_id: id, store_id, payment_status });
-      
-      return res.status(200).json({ received: true });
-    } catch (error) {
-      console.error("❌ Error in onOrderPaid:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  }
-
-  /**
    * CATEGORY CREATED
    */
   static async onCategoryCreated(req: Request, res: Response) {

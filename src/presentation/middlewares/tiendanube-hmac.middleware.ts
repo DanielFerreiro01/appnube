@@ -25,13 +25,32 @@ export const validateTiendanubeHmac = (
       console.warn(`⚠️  Webhook received without HMAC header: ${req.url}`);
       console.warn("   This might be a test webhook from Tiendanube during setup");
       
+      // ⚠️ WEBHOOKS CRÍTICOS: Siempre requieren HMAC, incluso en desarrollo
+      const criticalWebhooks = [
+        '/app/uninstalled',
+        '/app/suspended',
+        '/customer/redact',
+        '/customer/data_request'
+      ];
+      
+      const isCriticalWebhook = criticalWebhooks.some(path => req.url.includes(path));
+      
+      if (isCriticalWebhook) {
+        console.error(`❌ CRITICAL: ${req.url} requires HMAC validation!`);
+        console.error("   This webhook was REJECTED to prevent accidental data loss");
+        return res.status(401).json({ 
+          error: "Missing HMAC header",
+          message: "Critical webhooks require HMAC validation"
+        });
+      }
+      
       // Durante OAuth, Tiendanube puede enviar webhooks de prueba sin HMAC
       // Solo los rechazamos si no estamos en desarrollo
       if (process.env.NODE_ENV === 'production') {
         return res.status(401).json({ error: "Missing HMAC header" });
       }
       
-      // En desarrollo, permitir pasar para testing
+      // En desarrollo, permitir pasar para testing (SOLO webhooks no críticos)
       console.warn("   ⚠️  DEV MODE: Allowing webhook without HMAC for testing");
       
       // Intentar parsear el body si viene como Buffer

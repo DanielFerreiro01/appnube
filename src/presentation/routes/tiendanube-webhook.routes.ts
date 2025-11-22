@@ -97,28 +97,6 @@ export class TiendanubeWebhookRoutes {
     */
 
     // ============================================
-    // WEBHOOKS DE ÓRDENES (OPCIONAL PERO ÚTIL)
-    // ============================================
-
-    router.post(
-      "/order/created",
-      validateTiendanubeHmac,
-      TiendanubeWebhookController.onOrderCreated
-    );
-
-    router.post(
-      "/order/updated",
-      validateTiendanubeHmac,
-      TiendanubeWebhookController.onOrderUpdated
-    );
-
-    router.post(
-      "/order/paid",
-      validateTiendanubeHmac,
-      TiendanubeWebhookController.onOrderPaid
-    );
-
-    // ============================================
     // WEBHOOKS DE CATEGORÍAS (OPCIONAL)
     // ============================================
 
@@ -150,45 +128,45 @@ export class TiendanubeWebhookRoutes {
  * GDPR WEBHOOKS (SEPARADOS)
  * ============================================
  */
-import { WebhookController } from "../controllers/webhook.controller";
+// import { WebhookController } from "../controllers/webhook.controller";
 
-export class WebhookRoutes {
-  static get routes(): Router {
-    const router = Router();
+// export class WebhookRoutes {
+//   static get routes(): Router {
+//     const router = Router();
 
-    /**
-     * App Suspended (GDPR) - Borrar TODOS los datos de una tienda
-     * POST /api/webhooks/tiendanube/gdpr/app/suspended
-     * NOTA: Se configura en Partners Panel, no por API
-     */
-    router.post(
-      "/app/suspended",
-      validateTiendanubeHmac,
-      WebhookController.appSuspended
-    );
+//     /**
+//      * App Suspended (GDPR) - Borrar TODOS los datos de una tienda
+//      * POST /api/webhooks/tiendanube/gdpr/app/suspended
+//      * NOTA: Se configura en Partners Panel, no por API
+//      */
+//     router.post(
+//       "/app/suspended",
+//       validateTiendanubeHmac,
+//       WebhookController.appSuspended
+//     );
 
-    /**
-     * Customer Redact (GDPR) - Borrar datos de un cliente específico
-     * POST /api/webhooks/tiendanube/gdpr/customer/redact
-     * NOTA: Se configura en Partners Panel, no por API
-     */
-    router.post(
-      "/customer/redact",
-      validateTiendanubeHmac,
-      WebhookController.customerRedact
-    );
+//     /**
+//      * Customer Redact (GDPR) - Borrar datos de un cliente específico
+//      * POST /api/webhooks/tiendanube/gdpr/customer/redact
+//      * NOTA: Se configura en Partners Panel, no por API
+//      */
+//     router.post(
+//       "/customer/redact",
+//       validateTiendanubeHmac,
+//       WebhookController.customerRedact
+//     );
 
-    /**
-     * Customer Data Request (GDPR) - Devolver datos de un cliente
-     * POST /api/webhooks/tiendanube/gdpr/customer/data_request
-     * NOTA: Se configura en Partners Panel, no por API
-     */
-    router.post(
-      "/customer/data_request",
-      validateTiendanubeHmac,
-      WebhookController.customerDataRequest
-    );
+//     /**
+//      * Customer Data Request (GDPR) - Devolver datos de un cliente
+//      * POST /api/webhooks/tiendanube/gdpr/customer/data_request
+//      * NOTA: Se configura en Partners Panel, no por API
+//      */
+//     router.post(
+//       "/customer/data_request",
+//       validateTiendanubeHmac,
+//       WebhookController.customerDataRequest
+//     );
 
-    return router;
-  }
-}
+//     return router;
+//   }
+// }

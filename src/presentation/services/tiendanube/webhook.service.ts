@@ -1,3 +1,5 @@
+import { envs } from "../../../config";
+
 export class TiendanubeWebhookService {
   private readonly baseUrl = "https://api.tiendanube.com/v1";
 
@@ -25,7 +27,7 @@ export class TiendanubeWebhookService {
         },
         body: JSON.stringify({
           topic,
-          url: `https://tudominio.com/api/webhooks/tiendanube/${topic}`,
+          url: `${envs.WEBSERVICE_URL}/api/webhooks/tiendanube/${topic}`,
         }),
       }
     );
