@@ -50,14 +50,6 @@ export class TiendanubeWebhookService {
         { event: "category/updated", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/category/updated` },
         { event: "category/deleted", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/category/deleted` },
         
-        // Órdenes (requieren scope "read_orders" en tu app)
-        // Descomenta estas líneas si configuras el scope en Partners Panel
-        // { event: "order/created", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/created` },
-        // { event: "order/updated", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/updated` },
-        // { event: "order/paid", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/paid` },
-        // { event: "order/packed", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/packed` },
-        // { event: "order/fulfilled", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/fulfilled` },
-        // { event: "order/cancelled", url: `${baseUrl}/api/webhooks/tiendanube/mandatory/order/cancelled` },
       ];
 
       const allWebhooks = [...mandatoryWebhooks, ...optionalWebhooks];

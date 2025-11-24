@@ -3,8 +3,8 @@ import { AuthRoutes } from "./auth.routes";
 import { StoreRoutes } from "./store.routes";
 import { ProductRoutes } from "./product.routes";
 import { TiendanubeOAuthRoutes } from "./tiendanube-oauth.routes";
-import { WebhookRoutes } from "./webhook.routes";
-import { TiendanubeWebhookRoutes } from "./tiendanube-webhook.routes";
+import { MandatoryWebhookRoutes } from "./mandatory-webhook.routes";
+import { GDPRWebhookRoutes } from "./gdpr-webhook.routes";
 
 export class AppRoutes {
   static get routes(): Router {
@@ -15,14 +15,14 @@ export class AppRoutes {
     router.use("/api/stores", StoreRoutes.routes);
     router.use("/api/products", ProductRoutes.routes);
     
-    // Rutas OAuth de Tiendanube
+    // OAuth de Tiendanube
     router.use("/api/auth/tiendanube", TiendanubeOAuthRoutes.routes);
 
-    // Webhooks obligatorios
-    router.use("/api/webhooks/tiendanube/mandatory", TiendanubeWebhookRoutes.routes);
+    // Webhooks obligatorios (funcionalidad)
+    router.use("/api/webhooks/tiendanube/mandatory", MandatoryWebhookRoutes.routes);
 
-    // Webhooks GDPR
-    router.use("/api/webhooks/tiendanube/gdpr", WebhookRoutes.routes);
+    // Webhooks GDPR (legal)
+    router.use("/api/webhooks/tiendanube/gdpr", GDPRWebhookRoutes.routes);
 
     return router;
   }

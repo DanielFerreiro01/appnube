@@ -5,3 +5,4 @@ export * from './models/variant.model';
 export * from './models/image.model';
 export * from './models/favorite.model';
 export * from './models/user.model';
+export * from './models/category.model';
