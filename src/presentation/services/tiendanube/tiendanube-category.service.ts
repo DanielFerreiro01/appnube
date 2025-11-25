@@ -260,43 +260,62 @@ export class TiendanubeCategoryService {
   }
 
   /**
-   * Guarda o actualiza una categoría
-   */
-  private async saveCategory(storeId: number, tnCategory: TiendanubeCategory) {
-    try {
-      await CategoryModel.findOneAndUpdate(
-        { storeId, categoryId: tnCategory.id },
-        {
-          storeId,
-          categoryId: tnCategory.id,
-          name: tnCategory.name.es || tnCategory.name,
-          description: tnCategory.description?.es || tnCategory.description || "",
-          handle: tnCategory.handle,
-          parent: tnCategory.parent,
-          subcategories: tnCategory.subcategories || [],
-          seoTitle: tnCategory.seo_title?.es || tnCategory.seo_title || "",
-          seoDescription: tnCategory.seo_description?.es || tnCategory.seo_description || "",
-          googleShoppingCategory: tnCategory.google_shopping_category,
-          createdAtTN: new Date(tnCategory.created_at),
-          updatedAtTN: new Date(tnCategory.updated_at),
-          syncedAt: new Date(),
-          syncError: null,
-        },
-        { upsert: true, new: true }
-      );
-    } catch (error) {
-      await CategoryModel.findOneAndUpdate(
-        { storeId, categoryId: tnCategory.id },
-        {
-          syncError: error instanceof Error ? error.message : String(error),
-          syncedAt: new Date(),
-        },
-        { upsert: true }
-      );
-      
-      throw error;
-    }
+ * Helper para extraer valores multiidioma de Tiendanube
+ */
+private extractMultilangValue(value: any, fallback: string = ''): string {
+  if (!value) return fallback;
+  
+  // Si es un objeto con 'es', extraer el valor
+  if (typeof value === 'object' && value.es !== undefined) {
+    return String(value.es || fallback);
   }
+  
+  // Si ya es string, devolverlo
+  if (typeof value === 'string') {
+    return value || fallback;
+  }
+  
+  return fallback;
+}
+
+/**
+ * Guarda o actualiza una categoría
+ */
+private async saveCategory(storeId: number, tnCategory: TiendanubeCategory) {
+  try {
+    await CategoryModel.findOneAndUpdate(
+      { storeId, categoryId: tnCategory.id },
+      {
+        storeId,
+        categoryId: tnCategory.id,
+        name: this.extractMultilangValue(tnCategory.name, 'Sin nombre'),
+        description: this.extractMultilangValue(tnCategory.description),
+        handle: this.extractMultilangValue(tnCategory.handle),
+        parent: tnCategory.parent,
+        subcategories: tnCategory.subcategories || [],
+        seoTitle: this.extractMultilangValue(tnCategory.seo_title),
+        seoDescription: this.extractMultilangValue(tnCategory.seo_description),
+        googleShoppingCategory: tnCategory.google_shopping_category,
+        createdAtTN: new Date(tnCategory.created_at),
+        updatedAtTN: new Date(tnCategory.updated_at),
+        syncedAt: new Date(),
+        syncError: null,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    await CategoryModel.findOneAndUpdate(
+      { storeId, categoryId: tnCategory.id },
+      {
+        syncError: error instanceof Error ? error.message : String(error),
+        syncedAt: new Date(),
+      },
+      { upsert: true }
+    );
+    
+    throw error;
+  }
+}
 
   /**
    * Construye árbol jerárquico de categorías

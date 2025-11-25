@@ -24,9 +24,12 @@ async function main() {
 
     const api = require('./test/test-api.js');
 
+    await api.testRegister("daniel@gmail.com");
+    await api.testLogin("daniel@gmail.com", "123456");
+    
     await api.testListStores();
 
-    // Ver estado
-    api.showState();
+    // // Ver estado
+    // api.showState();
 
 }

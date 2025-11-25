@@ -90,7 +90,7 @@ async function testRegister(email = null) {
   const result = await request("/auth/register", {
     method: "POST",
     body: JSON.stringify({
-      name: "Test User API",
+      name: "Daniel",
       email: userEmail,
       password: "123456",
     }),
