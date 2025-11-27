@@ -2,7 +2,6 @@ import { CustomError } from "../../../domain";
 import { StoreModel } from "../../../data/mongo";
 import { TiendanubeWebhookService } from "./tiendanube-webhooks.service";
 
-
 /**
  * Interfaz para la respuesta del token de Tiendanube
  */
@@ -31,8 +30,6 @@ export class TiendanubeOAuthService {
 
   /**
    * Intercambia el authorization code por un access token
-   * @param code - Authorization code recibido en el callback
-   * @returns Token response con access_token y user_id
    */
   async exchangeCodeForToken(code: string): Promise<TiendanubeTokenResponse> {
     try {
@@ -58,7 +55,6 @@ export class TiendanubeOAuthService {
 
       const tokenData: TiendanubeTokenResponse = await response.json();
 
-      // Validar que tengamos todos los datos necesarios
       if (!tokenData.access_token || !tokenData.user_id) {
         throw CustomError.internalServerError(
           "Invalid token response from Tiendanube"
@@ -76,9 +72,6 @@ export class TiendanubeOAuthService {
 
   /**
    * Obtiene información básica de la tienda usando el access token
-   * @param storeId - ID de la tienda en Tiendanube
-   * @param accessToken - Access token de OAuth
-   * @returns Información de la tienda
    */
   async getStoreInfo(storeId: number, accessToken: string) {
     try {
@@ -112,20 +105,16 @@ export class TiendanubeOAuthService {
 
   /**
    * Procesa el callback de OAuth y crea/actualiza la tienda en la DB
-   * @param code - Authorization code
-   * @param state - CSRF token (opcional pero recomendado)
-   * @returns Store creada/actualizada
    */
   async handleCallback(code: string, state?: string) {
     try {
       // 1. Intercambiar code por token
-      console.log("Exchanging code for token...");
+      console.log("🔐 Exchanging code for token...");
       const tokenData = await this.exchangeCodeForToken(code);
-
-      console.log(`Token received for store ${tokenData.user_id}`);
+      console.log(`✅ Token received for store ${tokenData.user_id}`);
 
       // 2. Obtener información de la tienda
-      console.log("Fetching store info...");
+      console.log("📋 Fetching store info...");
       const storeInfo = await this.getStoreInfo(
         tokenData.user_id,
         tokenData.access_token
@@ -133,23 +122,22 @@ export class TiendanubeOAuthService {
 
       // 3. Buscar si la tienda ya existe
       let store = await StoreModel.findOne({ storeId: tokenData.user_id });
+      const isNewStore = !store;
 
       if (store) {
         // Actualizar tienda existente
-        console.log(`Updating existing store ${store.id}`);
+        console.log(`🔄 Updating existing store ${store.id}`);
         store.accessToken = tokenData.access_token;
         store.name = storeInfo.name?.es || storeInfo.name || store.name;
         
-        // Actualizar URL si cambió
         if (storeInfo.url) {
           store.tiendanubeUrl = storeInfo.url;
         }
 
         await store.save();
-
       } else {
         // Crear nueva tienda
-        console.log(`Creating new store for Tiendanube ID ${tokenData.user_id}`);
+        console.log(`🆕 Creating new store for Tiendanube ID ${tokenData.user_id}`);
         
         store = new StoreModel({
           name: storeInfo.name?.es ?? storeInfo.name ?? `Store ${tokenData.user_id}`,
@@ -164,10 +152,19 @@ export class TiendanubeOAuthService {
         await store.save();
       }
 
+      // 4. Registrar webhooks (crítico para mantener sincronización)
+      console.log("🔔 Registering webhooks...");
       await TiendanubeWebhookService.registerAll(
         tokenData.user_id,
         tokenData.access_token
       );
+
+      // 🆕 5. SINCRONIZACIÓN INICIAL (en background)
+      console.log("🔄 Starting initial sync...");
+      this.startInitialSync(store.id).catch(error => {
+        console.error("❌ Initial sync failed:", error);
+        // No lanzar error para no interrumpir el flujo OAuth
+      });
 
       return {
         store: {
@@ -177,7 +174,7 @@ export class TiendanubeOAuthService {
           tiendanubeUrl: store.tiendanubeUrl,
         },
         scopes: tokenData.scope,
-        isNewStore: !store,
+        isNewStore,
       };
     } catch (error) {
       if (error instanceof CustomError) throw error;
@@ -188,10 +185,32 @@ export class TiendanubeOAuthService {
   }
 
   /**
+   * 🆕 Inicia la sincronización inicial en background
+   * Esto NO bloquea el flujo OAuth
+   */
+  private async startInitialSync(mongoStoreId: string): Promise<void> {
+    try {
+      // Importar dinámicamente para evitar dependencias circulares
+      const { TiendanubeService } = await import("./tiendanube.service");
+      
+      const tiendanubeService = new TiendanubeService();
+      
+      console.log(`[INITIAL-SYNC] Starting sync for store ${mongoStoreId}`);
+      
+      const result = await tiendanubeService.syncAll(mongoStoreId);
+      
+      console.log(
+        `[INITIAL-SYNC] ✅ Completed: ${result.summary.totalProducts} products, ` +
+        `${result.summary.totalCategories} categories`
+      );
+    } catch (error) {
+      console.error(`[INITIAL-SYNC] ❌ Error:`, error);
+      // No lanzar el error - la sincronización es en background
+    }
+  }
+
+  /**
    * Verifica si un access token es válido
-   * @param storeId - ID de la tienda
-   * @param accessToken - Token a verificar
-   * @returns true si es válido, false si no
    */
   async verifyAccessToken(storeId: number, accessToken: string): Promise<boolean> {
     try {
@@ -214,8 +233,6 @@ export class TiendanubeOAuthService {
 
   /**
    * Genera la URL de autorización para que el usuario instale la app
-   * @param state - CSRF token (recomendado)
-   * @returns URL de autorización
    */
   getAuthorizationUrl(state?: string): string {
     const baseUrl = `https://www.tiendanube.com/apps/${this.clientId}/authorize`;
