@@ -1,4 +1,5 @@
 import { StoreModel } from "../../../data/mongo";
+import type { IStore, IStoreDocument } from "../../../data/mongo/models/store.model";
 import { CustomError } from "../../../domain";
 import { CreateStoreDTO } from "../../../domain/dtos/store/create-store.dto";
 import { UpdateStoreDTO } from "../../../domain/dtos/store/update-store.dto";
@@ -10,7 +11,7 @@ export class StoreService {
   constructor() {}
 
   async createStore(createStoreDto: CreateStoreDTO) {
-    const existingStore = await StoreModel.findOne({
+    const existingStore: IStoreDocument | null = await StoreModel.findOne({
       tiendanubeUrl: createStoreDto.tiendanubeUrl,
     });
 
@@ -65,7 +66,7 @@ export class StoreService {
 
   async getStoreById(id: string) {
     try {
-      const store = await StoreModel.findById(id);
+      const store: IStoreDocument | null = await StoreModel.findById(id);
 
       if (!store) {
         throw CustomError.notFound("Store not found");
@@ -81,7 +82,7 @@ export class StoreService {
 
   async updateStore(id: string, updateStoreDto: UpdateStoreDTO) {
     try {
-      const store = await StoreModel.findById(id);
+      const store: IStoreDocument | null = await StoreModel.findById(id);
 
       if (!store) {
         throw CustomError.notFound("Store not found");
@@ -89,7 +90,7 @@ export class StoreService {
 
       // Verificar que la URL no esté siendo usada por otra tienda
       if (updateStoreDto.tiendanubeUrl && updateStoreDto.tiendanubeUrl !== store.tiendanubeUrl) {
-        const existingStore = await StoreModel.findOne({
+        const existingStore: IStoreDocument | null = await StoreModel.findOne({
           tiendanubeUrl: updateStoreDto.tiendanubeUrl,
           _id: { $ne: id },
         });
@@ -101,7 +102,7 @@ export class StoreService {
 
       // Verificar que el storeId no esté siendo usado por otra tienda
       if (updateStoreDto.storeId && updateStoreDto.storeId !== store.storeId) {
-        const existingStore = await StoreModel.findOne({
+        const existingStore: IStoreDocument | null = await StoreModel.findOne({
           storeId: updateStoreDto.storeId,
           _id: { $ne: id },
         });
@@ -131,7 +132,7 @@ export class StoreService {
 
   async deleteStore(id: string) {
     try {
-      const store = await StoreModel.findByIdAndDelete(id);
+      const store: IStoreDocument | null = await StoreModel.findByIdAndDelete(id);
 
       if (!store) {
         throw CustomError.notFound("Store not found");

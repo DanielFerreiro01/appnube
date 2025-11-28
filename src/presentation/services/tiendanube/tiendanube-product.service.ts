@@ -1,11 +1,15 @@
 import { CustomError } from "../../../domain";
-import { StoreModel, ProductModel, VariantModel, ImageModel } from "../../../data/mongo";
+import { StoreModel, ProductModel, VariantModel, ImageModel} from "../../../data/mongo";
+import type { IProduct } from "../../../data/mongo/models/product.model";
+import type { IVariant } from "../../../data/mongo/models/variant.model";
+import type { IImage } from "../../../data/mongo/models/image.model";
+
 
 interface TiendanubeProduct {
   id: number;
   name: { es: string };
   description: { es: string };
-  handle: string;
+  handle: string | { es: string }; // 🔥 Puede ser string u objeto
   attributes: Array<{ es: string }>;
   published: boolean;
   free_shipping: boolean;
@@ -262,98 +266,128 @@ export class TiendanubeProductService {
   }
 
   /**
+   * 🔥 Helper para extraer valores multiidioma de Tiendanube
+   * Igual que en tiendanube-category.service.ts
+   */
+  private extractMultilangValue(value: any, fallback: string = ''): string {
+    if (!value) return fallback;
+    
+    // Si es un objeto con 'es', extraer el valor
+    if (typeof value === 'object' && value.es !== undefined) {
+      return String(value.es || fallback);
+    }
+    
+    // Si ya es string, devolverlo
+    if (typeof value === 'string') {
+      return value || fallback;
+    }
+    
+    return fallback;
+  }
+
+  /**
    * Guarda o actualiza un producto con sus variantes e imágenes
    */
-  private async saveProduct(storeId: number, tnProduct: TiendanubeProduct) {
+  private async saveProduct(
+    storeId: number,
+    tnProduct: TiendanubeProduct
+  ): Promise<IProduct> {
     try {
       const basePrice = parseFloat(tnProduct.variants[0]?.price || "0");
-      
-      const permalink = tnProduct.canonical_url || 
-                       `https://${storeId}.mitiendanube.com/productos/${tnProduct.handle}`;
+
+      // 🔥 Extraer handle usando el helper
+      let finalHandle = this.extractMultilangValue(tnProduct.handle);
+
+      const permalink =
+        tnProduct.canonical_url ??
+        `https://${storeId}.mitiendanube.com/productos/${finalHandle}`;
 
       // Validar handle único
-      let finalHandle = tnProduct.handle;
       if (finalHandle) {
         const existingProduct = await ProductModel.findOne({
           storeId,
           handle: finalHandle,
-          productId: { $ne: tnProduct.id },
+          productId: { $ne: tnProduct.id }
         });
 
         if (existingProduct) {
           console.warn(
-            `[PRODUCT-SYNC] Handle collision for product ${tnProduct.id}. ` +
-            `Using productId suffix`
+            `[PRODUCT-SYNC] Handle collision for product ${tnProduct.id}. Using fallback.`
           );
           finalHandle = `${finalHandle}-${tnProduct.id}`;
         }
       }
 
-      // Extraer IDs de categorías
-      const categoryIds = tnProduct.categories?.map((cat) => cat.id) || [];
+      const categoryIds = tnProduct.categories?.map((c) => c.id) ?? [];
 
-      // Guardar producto
-      await ProductModel.findOneAndUpdate(
+      // 🔥 Usar extractMultilangValue para name y description también
+      const productData: Partial<IProduct> = {
+        storeId,
+        productId: tnProduct.id,
+        name: this.extractMultilangValue(tnProduct.name, `Product ${tnProduct.id}`),
+        description: this.extractMultilangValue(tnProduct.description, ''),
+        handle: finalHandle,
+        permalink,
+        price: basePrice,
+        categories: categoryIds,
+        published: tnProduct.published,
+        tags: tnProduct.tags?.split(",").map((t) => t.trim()) || [],
+        mainImage: tnProduct.images[0]?.src,
+        updatedAtTN: new Date(tnProduct.updated_at),
+        createdAtTN: new Date(tnProduct.created_at),
+        syncedAt: new Date(),
+        syncError: undefined
+      };
+
+      // Guardar o actualizar producto
+      const product = await ProductModel.findOneAndUpdate(
         { storeId, productId: tnProduct.id },
-        {
-          storeId,
-          productId: tnProduct.id,
-          name: tnProduct.name.es || tnProduct.name,
-          description: tnProduct.description?.es || tnProduct.description || "",
-          price: basePrice,
-          handle: finalHandle,
-          permalink,
-          published: tnProduct.published,
-          tags: tnProduct.tags ? tnProduct.tags.split(",").map(t => t.trim()) : [],
-          categories: categoryIds,
-          mainImage: tnProduct.images[0]?.src,
-          createdAtTN: new Date(tnProduct.created_at),
-          updatedAtTN: new Date(tnProduct.updated_at),
-          syncedAt: new Date(),
-          syncError: null,
-        },
-        { upsert: true, new: true }
+        productData,
+        { new: true, upsert: true }
       );
 
-      // Guardar variantes
-      if (tnProduct.variants && tnProduct.variants.length > 0) {
-        for (const variant of tnProduct.variants) {
-          await VariantModel.findOneAndUpdate(
-            { storeId, productId: tnProduct.id, variantId: variant.id },
-            {
-              storeId,
-              productId: tnProduct.id,
-              variantId: variant.id,
-              sku: variant.sku || "",
-              price: parseFloat(variant.price),
-              stock: variant.stock || 0,
-              options: variant.values ? variant.values.map((v) => v.es || v) : [],
-              updatedAtTN: new Date(variant.updated_at),
-            },
-            { upsert: true, new: true }
-          );
-        }
+      if (!product) {
+        throw new Error("Failed to save product");
       }
 
-      // Guardar imágenes
-      if (tnProduct.images && tnProduct.images.length > 0) {
-        // Borrar imágenes viejas
-        await ImageModel.deleteMany({ storeId, productId: tnProduct.id });
-        
-        // Insertar nuevas
-        for (const image of tnProduct.images) {
-          await ImageModel.create({
-            storeId,
-            productId: tnProduct.id,
-            imageId: image.id,
-            src: image.src,
-            alt: image.alt?.[0]?.es || image.alt?.[0] || "",
-            position: image.position || 0,
-          });
-        }
+      // --- GUARDAR VARIANTES ---
+      await VariantModel.deleteMany({ storeId, productId: tnProduct.id });
+
+      const variantsToInsert: IVariant[] = tnProduct.variants.map((v) => ({
+        storeId,
+        productId: tnProduct.id,
+        variantId: v.id,
+        price: parseFloat(v.price),
+        stock: v.stock,
+        sku: v.sku,
+        values: v.values?.map((val) => this.extractMultilangValue(val)) || [],
+        createdAtTN: new Date(v.created_at),
+        updatedAtTN: new Date(v.updated_at)
+      })) as unknown as IVariant[];
+
+      if (variantsToInsert.length > 0) {
+        await VariantModel.insertMany(variantsToInsert);
       }
+
+      // --- GUARDAR IMÁGENES ---
+      await ImageModel.deleteMany({ storeId, productId: tnProduct.id });
+
+      const imagesToInsert: IImage[] = tnProduct.images.map((img) => ({
+        storeId,
+        productId: tnProduct.id,
+        imageId: img.id,
+        src: img.src,
+        position: img.position,
+        alt: img.alt?.map((a) => this.extractMultilangValue(a)) || []
+      })) as unknown as IImage[];
+
+      if (imagesToInsert.length > 0) {
+        await ImageModel.insertMany(imagesToInsert);
+      }
+
+      return product;
     } catch (error) {
-      // Registrar error en el producto
+      // 🔥 Registrar error en el producto para debugging
       await ProductModel.findOneAndUpdate(
         { storeId, productId: tnProduct.id },
         {
@@ -363,7 +397,8 @@ export class TiendanubeProductService {
         { upsert: true }
       );
       
-      throw error;
+      throw CustomError.internalServerError(`Error saving product: ${error}`);
     }
   }
+
 }

@@ -1,5 +1,6 @@
 import { CustomError } from "../../../domain";
 import { StoreModel, CategoryModel } from "../../../data/mongo";
+import type { ICategory } from "../../../data/mongo/models/category.model";
 
 interface TiendanubeCategory {
   id: number;
@@ -14,6 +15,11 @@ interface TiendanubeCategory {
   created_at: string;
   updated_at: string;
 }
+
+interface ICategoryTreeNode extends ICategory {
+  children: ICategoryTreeNode[];
+}
+
 
 /**
  * Servicio para sincronización de CATEGORÍAS desde Tiendanube
@@ -281,66 +287,83 @@ private extractMultilangValue(value: any, fallback: string = ''): string {
 /**
  * Guarda o actualiza una categoría
  */
-private async saveCategory(storeId: number, tnCategory: TiendanubeCategory) {
-  try {
-    await CategoryModel.findOneAndUpdate(
-      { storeId, categoryId: tnCategory.id },
-      {
+private async saveCategory(
+    storeId: number,
+    tnCategory: TiendanubeCategory | TiendanubeCategory[]
+  ): Promise<ICategory[]> {
+    try {
+      // Normalizar: si viene un solo objeto → convertirlo en array
+      const categoriesArray = Array.isArray(tnCategory)
+        ? tnCategory
+        : [tnCategory];
+
+      // 1. Mapear categorías Tiendanube → ICategory
+      const mappedCategories: Partial<ICategory>[] = categoriesArray.map((cat) => ({
         storeId,
-        categoryId: tnCategory.id,
-        name: this.extractMultilangValue(tnCategory.name, 'Sin nombre'),
-        description: this.extractMultilangValue(tnCategory.description),
-        handle: this.extractMultilangValue(tnCategory.handle),
-        parent: tnCategory.parent,
-        subcategories: tnCategory.subcategories || [],
-        seoTitle: this.extractMultilangValue(tnCategory.seo_title),
-        seoDescription: this.extractMultilangValue(tnCategory.seo_description),
-        googleShoppingCategory: tnCategory.google_shopping_category,
-        createdAtTN: new Date(tnCategory.created_at),
-        updatedAtTN: new Date(tnCategory.updated_at),
+        categoryId: cat.id,
+        name: this.extractMultilangValue(cat.name, "Sin nombre"),
+        description: this.extractMultilangValue(cat.description) ?? undefined,
+        handle: this.extractMultilangValue(cat.handle) ?? undefined,
+        parent: cat.parent ?? undefined,
+        subcategories: cat.subcategories ?? [],
+        seoTitle: this.extractMultilangValue(cat.seo_title) ?? undefined,
+        seoDescription: this.extractMultilangValue(cat.seo_description) ?? undefined,
+        googleShoppingCategory: cat.google_shopping_category ?? undefined,
+        createdAtTN: new Date(cat.created_at),
+        updatedAtTN: new Date(cat.updated_at),
         syncedAt: new Date(),
-        syncError: null,
-      },
-      { upsert: true, new: true }
-    );
-  } catch (error) {
-    await CategoryModel.findOneAndUpdate(
-      { storeId, categoryId: tnCategory.id },
-      {
-        syncError: error instanceof Error ? error.message : String(error),
-        syncedAt: new Date(),
-      },
-      { upsert: true }
-    );
-    
-    throw error;
+        syncError: undefined,
+      }));
+
+      // 2. Borrar categorías previas de la store
+      await CategoryModel.deleteMany({ storeId });
+
+      // 3. Insertar las nuevas
+      const insertedDocs = await CategoryModel.insertMany(mappedCategories);
+
+      // 4. Retornar estrictamente tipado como ICategory[]
+      return insertedDocs.map((doc) => doc.toObject() as ICategory);
+
+    } catch (error) {
+      throw new Error(
+        `Error saving categories for store ${storeId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
-}
+
+
 
   /**
    * Construye árbol jerárquico de categorías
    */
-  private buildCategoryTree(categories: any[]): any[] {
-    const categoryMap = new Map();
-    const rootCategories: any[] = [];
+  private buildCategoryTree(categories: ICategory[]): ICategoryTreeNode[] {
+    const categoryMap = new Map<number, ICategoryTreeNode>();
+    const rootCategories: ICategoryTreeNode[] = [];
 
-    // Mapear todas las categorías
+    // 1. Crear nodos iniciales
     categories.forEach(cat => {
-      categoryMap.set(cat.categoryId, { ...cat, children: [] });
+      categoryMap.set(cat.categoryId, {
+        ...cat,
+        children: [],
+      });
     });
 
-    // Construir árbol
+    // 2. Construir el árbol
     categories.forEach(cat => {
-      const node = categoryMap.get(cat.categoryId);
-      
+      const node = categoryMap.get(cat.categoryId)!;
+
       if (!cat.parent) {
+        // No tiene padre → es raíz
         rootCategories.push(node);
       } else {
         const parent = categoryMap.get(cat.parent);
+
         if (parent) {
           parent.children.push(node);
         } else {
-          // Si el padre no existe, agregar como raíz
+          // Padre no encontrado → tratar como raíz
           rootCategories.push(node);
         }
       }
@@ -348,4 +371,5 @@ private async saveCategory(storeId: number, tnCategory: TiendanubeCategory) {
 
     return rootCategories;
   }
+
 }

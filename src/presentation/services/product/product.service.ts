@@ -1,6 +1,10 @@
 import { ProductModel, VariantModel, ImageModel } from "../../../data/mongo";
+import type { IProduct } from "../../../data/mongo/models/product.model";
+import type { IVariant } from "../../../data/mongo/models/variant.model";
+import type { IImage } from "../../../data/mongo/models/image.model";
 import { CustomError } from "../../../domain";
 import { PaginationDto } from "../../../domain/dtos/shared/pagination.dto";
+import { FilterQuery } from "mongoose";
 
 /**
  * Opciones de filtrado para productos
@@ -16,6 +20,20 @@ interface ProductFilters {
 }
 
 /**
+ * Filtros limpios para productos
+ */
+export interface SanitizedProductFilters {
+  storeId: number;
+  published?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+  inStock?: boolean;
+  tags?: string[];
+  searchTerm?: string;
+}
+
+
+/**
  * Opciones de ordenamiento para productos
  */
 type SortOption = 
@@ -26,6 +44,63 @@ type SortOption =
   | "name-asc" 
   | "name-desc"
   | "stock-desc";
+
+/**
+ * Conteo de tags
+ */
+type TagCount = {
+  tag: string;
+  count: number;
+};
+
+/**
+ * Producto destacado con stock total
+ */
+type FeaturedProduct = IProduct & { totalStock: number };
+
+/**
+ * Rango de precios
+ */
+interface PriceRangeAggregate {
+  minPrice: number | null;
+  maxPrice: number | null;
+  avgPrice: number | null;
+}
+
+export interface PriceRange {
+  minPrice: number;
+  maxPrice: number;
+  avgPrice: number;
+}
+
+export interface TagsResult {
+  tags: Array<{ tag: string; count: number }>;
+  total: number;
+}
+
+export interface ProductStats {
+  storeId: number;
+  totalProducts: number;
+  publishedProducts: number;
+  unpublishedProducts: number;
+  productsWithImages: number;
+  productsWithoutImages: number;
+  totalVariants: number;
+  totalStock: number;
+  productsWithStock: number;
+  productsWithoutStock: number;
+  priceRange: PriceRange;
+  topTags: Array<{ tag: string; count: number }>;
+  totalTags: number;
+  averageVariantsPerProduct: string; // porque usas .toFixed(2)
+}
+
+interface StockAggregate {
+  totalStock: number;
+  withStock: number;
+  withoutStock: number;
+}
+
 
 /**
  * Servicio para gestión de productos
@@ -50,16 +125,20 @@ export class ProductService {
       const skip = (page - 1) * limit;
 
       // Construir query de filtros
-      const query: any = { storeId: filters.storeId };
+      const query: Record<string, unknown> = { storeId: filters.storeId };
 
       if (filters.published !== undefined) {
         query.published = filters.published;
       }
 
       if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-        query.price = {};
-        if (filters.minPrice !== undefined) query.price.$gte = filters.minPrice;
-        if (filters.maxPrice !== undefined) query.price.$lte = filters.maxPrice;
+        query.price = {} as Record<string, number>;
+
+        if (filters.minPrice !== undefined)
+          (query.price as Record<string, number>).$gte = filters.minPrice;
+
+        if (filters.maxPrice !== undefined)
+          (query.price as Record<string, number>).$lte = filters.maxPrice;
       }
 
       if (filters.tags && filters.tags.length > 0) {
@@ -75,7 +154,7 @@ export class ProductService {
       }
 
       // Determinar ordenamiento
-      let sort: any = { updatedAtTN: -1 }; // Default: newest
+      let sort: Record<string, 1 | -1> = { updatedAtTN: -1 }; // Default: newest
       switch (sortBy) {
         case "oldest":
           sort = { createdAtTN: 1 };
@@ -112,7 +191,7 @@ export class ProductService {
 
       // Query normal sin filtro de stock
       const [products, total] = await Promise.all([
-        ProductModel.find(query).skip(skip).limit(limit).sort(sort).lean(),
+        ProductModel.find(query).skip(skip).limit(limit).sort(sort).lean<IProduct[]>(),
         ProductModel.countDocuments(query),
       ]);
 
@@ -145,8 +224,19 @@ export class ProductService {
     limit: number,
     sort: any,
     inStock: boolean
-  ) {
-    const products = await ProductModel.aggregate([
+  ) : Promise<{
+      products: IProduct[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }> 
+  {
+    const products = await ProductModel.aggregate<IProduct>([
       { $match: baseQuery },
       {
         $lookup: {
@@ -185,7 +275,7 @@ export class ProductService {
       },
     ]);
 
-    const total = await ProductModel.aggregate([
+    const total = await ProductModel.aggregate<{ total: number }>([
       { $match: baseQuery },
       {
         $lookup: {
@@ -241,45 +331,60 @@ export class ProductService {
   async getProductById(storeId: number, productId: number) {
     try {
       const [product, variants, images] = await Promise.all([
-        ProductModel.findOne({ storeId, productId }).lean(),
-        VariantModel.find({ storeId, productId }).lean(),
-        ImageModel.find({ storeId, productId }).sort({ position: 1 }).lean(),
+        ProductModel.findOne({ storeId, productId }).lean<IProduct>(),
+        VariantModel.find({ storeId, productId }).lean<IVariant[]>(),
+        ImageModel.find({ storeId, productId }).sort({ position: 1 }).lean<IImage[]>(),
       ]);
 
       if (!product) {
         throw CustomError.notFound("Product not found");
       }
 
-      // Calcular estadísticas
-      const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
-      const prices = variants.map((v) => v.price);
-      const minPrice = prices.length > 0 ? Math.min(...prices) : product.price;
-      const maxPrice = prices.length > 0 ? Math.max(...prices) : product.price;
+      const safeVariants = variants ?? [];
+      const safeImages = images ?? [];
+
+      // Stock
+      const totalStock = safeVariants.reduce(
+        (sum, v) => sum + (v.stock ?? 0),
+        0
+      );
+
+      // Prices
+      const prices = safeVariants
+        .map((v) => v.price)
+        .filter((p): p is number => typeof p === "number");
+
+      const minPrice = prices.length ? Math.min(...prices) : product.price;
+      const maxPrice = prices.length ? Math.max(...prices) : product.price;
+
+      const averagePrice =
+        prices.length
+          ? prices.reduce((acc, p) => acc + p, 0) / prices.length
+          : product.price;
 
       return {
         product,
-        variants: variants || [],
-        images: images || [],
+        variants: safeVariants,
+        images: safeImages,
         stats: {
-          totalVariants: variants.length,
-          totalImages: images.length,
+          totalVariants: safeVariants.length,
+          totalImages: safeImages.length,
           totalStock,
           minPrice,
           maxPrice,
           hasStock: totalStock > 0,
-          averagePrice:
-            prices.length > 0
-              ? prices.reduce((a, b) => a + b, 0) / prices.length
-              : product.price,
+          averagePrice,
         },
       };
     } catch (error) {
       if (error instanceof CustomError) throw error;
+
       throw CustomError.internalServerError(
         `Error getting product: ${error}`
       );
     }
   }
+
 
   /**
    * Obtiene productos relacionados basados en tags
@@ -288,32 +393,47 @@ export class ProductService {
    * @param limit - Cantidad de productos relacionados
    * @returns Productos relacionados
    */
-  async getRelatedProducts(
-    storeId: number,
-    productId: number,
-    limit: number = 6
+ async getRelatedProducts(
+  storeId: number,
+  productId: number,
+  limit: number = 6
   ) {
     try {
-      // Obtener el producto actual
       const currentProduct = await ProductModel.findOne({
         storeId,
         productId,
-      }).lean();
+      }).lean<IProduct>();
 
       if (!currentProduct) {
         throw CustomError.notFound("Product not found");
       }
 
-      // Buscar productos con tags similares
-      const relatedProducts = await ProductModel.find({
-        storeId,
-        productId: { $ne: productId }, // Excluir el producto actual
-        published: true,
-        tags: { $in: currentProduct.tags || [] },
-      })
-        .limit(limit)
-        .sort({ updatedAtTN: -1 })
-        .lean();
+      const tags = currentProduct.tags ?? [];
+
+      let relatedProducts: IProduct[];
+
+      if (tags.length > 0) {
+        // Buscar productos con tags similares
+        relatedProducts = await ProductModel.find({
+          storeId,
+          productId: { $ne: productId },
+          published: true,
+          tags: { $in: tags },
+        })
+          .limit(limit)
+          .sort({ updatedAtTN: -1 })
+          .lean<IProduct[]>();
+      } else {
+        // Fallback: productos recientes del mismo store
+        relatedProducts = await ProductModel.find({
+          storeId,
+          productId: { $ne: productId },
+          published: true,
+        })
+          .limit(limit)
+          .sort({ updatedAtTN: -1 })
+          .lean<IProduct[]>();
+      }
 
       return {
         relatedProducts,
@@ -331,6 +451,7 @@ export class ProductService {
     }
   }
 
+
   /**
    * Obtiene todos los tags únicos de una tienda
    * @param storeId - ID de Tiendanube
@@ -338,7 +459,7 @@ export class ProductService {
    */
   async getTags(storeId: number) {
     try {
-      const tags = await ProductModel.aggregate([
+      const tags = await ProductModel.aggregate<TagCount>([
         { $match: { storeId, published: true } },
         { $unwind: "$tags" },
         {
@@ -391,7 +512,7 @@ export class ProductService {
           .skip(skip)
           .limit(limit)
           .sort({ updatedAtTN: -1 })
-          .lean(),
+          .lean<IProduct[]>(),   // <-- TIPADO IMPORTANTE
         ProductModel.countDocuments({
           storeId,
           tags: tag,
@@ -418,15 +539,17 @@ export class ProductService {
     }
   }
 
+
   /**
    * Obtiene productos destacados (publicados y con stock)
    * @param storeId - ID de Tiendanube
    * @param limit - Cantidad de productos
    * @returns Productos destacados
    */
+ 
   async getFeaturedProducts(storeId: number, limit: number = 12) {
     try {
-      const products = await ProductModel.aggregate([
+      const products = await ProductModel.aggregate<FeaturedProduct[]>([
         {
           $match: {
             storeId,
@@ -482,6 +605,7 @@ export class ProductService {
     }
   }
 
+
   /**
    * Busca productos por múltiples criterios
    * @param storeId - ID de Tiendanube
@@ -498,7 +622,7 @@ export class ProductService {
       const { page, limit } = paginationDto;
       const skip = (page - 1) * limit;
 
-      const query = {
+      const query: FilterQuery<IProduct> = {
         storeId,
         $or: [
           { name: { $regex: searchTerm, $options: "i" } },
@@ -512,7 +636,7 @@ export class ProductService {
           .skip(skip)
           .limit(limit)
           .sort({ updatedAtTN: -1 })
-          .lean(),
+          .lean<IProduct[]>(),
         ProductModel.countDocuments(query),
       ]);
 
@@ -535,6 +659,7 @@ export class ProductService {
     }
   }
 
+
   /**
    * Obtiene el rango de precios de una tienda
    * @param storeId - ID de Tiendanube
@@ -542,7 +667,7 @@ export class ProductService {
    */
   async getPriceRange(storeId: number) {
     try {
-      const result = await ProductModel.aggregate([
+      const result = await ProductModel.aggregate<PriceRangeAggregate>([
         { $match: { storeId, published: true } },
         {
           $group: {
@@ -563,9 +688,9 @@ export class ProductService {
       }
 
       return {
-        minPrice: result[0].minPrice,
-        maxPrice: result[0].maxPrice,
-        avgPrice: Math.round(result[0].avgPrice),
+        minPrice: result[0].minPrice ?? 0,
+        maxPrice: result[0].maxPrice ?? 0,
+        avgPrice: Math.round(result[0].avgPrice ?? 0),
       };
     } catch (error) {
       throw CustomError.internalServerError(
@@ -579,7 +704,7 @@ export class ProductService {
    * @param storeId - ID de Tiendanube
    * @returns Estadísticas detalladas
    */
-  async getProductStats(storeId: number) {
+  async getProductStats(storeId: number): Promise<ProductStats> {
     try {
       const [
         totalProducts,
@@ -600,52 +725,50 @@ export class ProductService {
         this.getTags(storeId),
       ]);
 
-      // Productos con stock
-      const productsWithStockData = await ProductModel.aggregate([
-        { $match: { storeId } },
-        {
-          $lookup: {
-            from: "variants",
-            let: { storeId: "$storeId", productId: "$productId" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$storeId", "$$storeId"] },
-                      { $eq: ["$productId", "$$productId"] },
-                    ],
+      // Aggregate de stock
+      const productsWithStockData =
+        await ProductModel.aggregate<StockAggregate>([
+          { $match: { storeId } },
+          {
+            $lookup: {
+              from: "variants",
+              let: { storeId: "$storeId", productId: "$productId" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$storeId", "$$storeId"] },
+                        { $eq: ["$productId", "$$productId"] },
+                      ],
+                    },
                   },
                 },
+              ],
+              as: "variants",
+            },
+          },
+          { $addFields: { totalStock: { $sum: "$variants.stock" } } },
+          {
+            $group: {
+              _id: null,
+              totalStock: { $sum: "$totalStock" },
+              withStock: {
+                $sum: { $cond: [{ $gt: ["$totalStock", 0] }, 1, 0] },
               },
-            ],
-            as: "variants",
-          },
-        },
-        {
-          $addFields: {
-            totalStock: { $sum: "$variants.stock" },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalStock: { $sum: "$totalStock" },
-            withStock: {
-              $sum: { $cond: [{ $gt: ["$totalStock", 0] }, 1, 0] },
-            },
-            withoutStock: {
-              $sum: { $cond: [{ $eq: ["$totalStock", 0] }, 1, 0] },
+              withoutStock: {
+                $sum: { $cond: [{ $eq: ["$totalStock", 0] }, 1, 0] },
+              },
             },
           },
-        },
-      ]);
+        ]);
 
-      const stockData = productsWithStockData[0] || {
-        totalStock: 0,
-        withStock: 0,
-        withoutStock: 0,
-      };
+      const stockData =
+        productsWithStockData[0] || {
+          totalStock: 0,
+          withStock: 0,
+          withoutStock: 0,
+        };
 
       return {
         storeId,
@@ -659,12 +782,10 @@ export class ProductService {
         productsWithStock: stockData.withStock,
         productsWithoutStock: stockData.withoutStock,
         priceRange,
-        topTags: topTags.tags.slice(0, 10), // Top 10 tags
+        topTags: topTags.tags.slice(0, 10),
         totalTags: topTags.total,
         averageVariantsPerProduct:
-          totalProducts > 0
-            ? (totalVariants / totalProducts).toFixed(2)
-            : "0",
+          totalProducts > 0 ? (totalVariants / totalProducts).toFixed(2) : "0",
       };
     } catch (error) {
       throw CustomError.internalServerError(
@@ -673,23 +794,56 @@ export class ProductService {
     }
   }
 
+
   /**
    * Limpia y sanitiza los filtros para la respuesta
    */
   private sanitizeFilters(filters: ProductFilters) {
-    const sanitized: any = {
+    const query: Record<string, any> = {
       storeId: filters.storeId,
     };
 
-    if (filters.published !== undefined)
-      sanitized.published = filters.published;
-    if (filters.minPrice !== undefined) sanitized.minPrice = filters.minPrice;
-    if (filters.maxPrice !== undefined) sanitized.maxPrice = filters.maxPrice;
-    if (filters.inStock !== undefined) sanitized.inStock = filters.inStock;
-    if (filters.tags && filters.tags.length > 0)
-      sanitized.tags = filters.tags;
-    if (filters.searchTerm) sanitized.searchTerm = filters.searchTerm;
+    // published
+    if (filters.published !== undefined) {
+      query.published = filters.published;
+    }
 
-    return sanitized;
+    // price range
+    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+      query.price = {};
+
+      if (filters.minPrice !== undefined) {
+        query.price.$gte = filters.minPrice;
+      }
+      if (filters.maxPrice !== undefined) {
+        query.price.$lte = filters.maxPrice;
+      }
+    }
+
+    // stock filter
+    if (filters.inStock !== undefined) {
+      query.variants = {
+        $elemMatch: {
+          stock: filters.inStock ? { $gt: 0 } : { $eq: 0 }
+        }
+      };
+    }
+
+    // tags
+    if (filters.tags && filters.tags.length > 0) {
+      query.tags = { $in: filters.tags };
+    }
+
+    // text search
+    if (filters.searchTerm) {
+      query.$or = [
+        { name: { $regex: filters.searchTerm, $options: "i" } },
+        { description: { $regex: filters.searchTerm, $options: "i" } },
+        { tags: { $regex: filters.searchTerm, $options: "i" } },
+      ];
+    }
+
+    return query;
   }
+
 }

@@ -1,43 +1,83 @@
-import { Schema, model } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
-const ProductSchema = new Schema(
+/**
+ * Interfaz base del documento (sin métodos de Mongoose)
+ */
+export interface IProduct {
+  storeId: number;
+  productId: number;
+  name: string;
+  description?: string;
+  price: number;
+  permalink?: string;
+  handle?: string;
+  published?: boolean;
+  tags?: string[];
+  mainImage?: string;
+  categories?: number[];
+  createdAtTN?: Date;
+  updatedAtTN?: Date;
+  syncedAt?: Date;
+  syncError?: string;
+}
+
+/**
+ * Interfaz del documento de Mongoose (con métodos)
+ */
+export interface IProductDocument extends IProduct, Document {
+  // Aquí podés agregar métodos custom del documento
+  // Por ejemplo:
+  // getFullUrl(): string;
+}
+
+/**
+ * Schema de Mongoose
+ */
+const ProductSchema = new Schema<IProductDocument>(
   {
-    storeId: { type: Number, required: true }, // referencia directa a Store
-    productId: { type: Number, required: true }, // ID real de Tiendanube
+    storeId: { type: Number, required: true },
+    productId: { type: Number, required: true },
     name: { type: String, required: true },
     description: { type: String },
-    price: { type: Number, required: true }, // precio base
+    price: { type: Number, required: true },
     permalink: { type: String },
+    handle: { type: String },
     published: { type: Boolean },
     tags: [{ type: String }],
-    mainImage: { type: String }, // URL principal
-    
-    // 🆕 NUEVO: Relación con categorías
-    categories: [{ type: Number }], // IDs de categorías de Tiendanube
-    
-    createdAtTN: { type: Date },  // fechas originales de Tiendanube
+    mainImage: { type: String },
+    categories: [{ type: Number }],
+    createdAtTN: { type: Date },
     updatedAtTN: { type: Date },
-
-    /** Opcional pero MUY útil: */
-    syncedAt: { type: Date, default: Date.now }, // última sincronización
-    syncError: { type: String }, // Para debugging
+    syncedAt: { type: Date, default: Date.now },
+    syncError: { type: String },
   },
-  { versionKey: false }
+  { 
+    versionKey: false,
+    timestamps: false // Usamos nuestras propias fechas
+  }
 );
 
-// Índices para búsquedas rápidas
+// Índices
 ProductSchema.index({ storeId: 1, productId: 1 }, { unique: true });
 ProductSchema.index({ storeId: 1, published: 1 });
 ProductSchema.index({ storeId: 1, tags: 1 });
-// 🆕 NUEVO: Índice para buscar productos por categoría
 ProductSchema.index({ storeId: 1, categories: 1 });
 
+// Transform para JSON
 ProductSchema.set("toJSON", {
   virtuals: true,
   versionKey: false,
-  transform: function (doc, ret: Record<string, any>) {
+  transform: function (doc, ret) {
     delete ret._id;
   },
 });
 
-export const ProductModel = model("Product", ProductSchema);
+// Métodos custom del documento (opcional)
+// ProductSchema.methods.getFullUrl = function() {
+//   return `https://store.com/products/${this.handle}`;
+// };
+
+/**
+ * Modelo tipado
+ */
+export const ProductModel = model<IProductDocument>("Product", ProductSchema);

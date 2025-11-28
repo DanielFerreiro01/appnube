@@ -1,48 +1,70 @@
-import { Schema, model } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
-const CategorySchema = new Schema(
+/**
+ * Interfaz base del documento
+ */
+export interface ICategory {
+  storeId: number;
+  categoryId: number;
+  name: string;
+  description?: string;
+  handle?: string;
+  parent?: number;
+  subcategories?: number[];
+  seoTitle?: string;
+  seoDescription?: string;
+  googleShoppingCategory?: string;
+  createdAtTN?: Date;
+  updatedAtTN?: Date;
+  syncedAt?: Date;
+  syncError?: string;
+}
+
+/**
+ * Interfaz del documento de Mongoose
+ */
+export interface ICategoryDocument extends ICategory, Document {
+  // Métodos custom del documento
+}
+
+/**
+ * Schema de Mongoose
+ */
+const CategorySchema = new Schema<ICategoryDocument>(
   {
-    storeId: { type: Number, required: true }, // ID de Tiendanube
-    categoryId: { type: Number, required: true }, // ID real de la categoría en TN
-    
+    storeId: { type: Number, required: true },
+    categoryId: { type: Number, required: true },
     name: { type: String, required: true },
     description: { type: String },
-    handle: { type: String }, // URL slug
-    parent: { type: Number }, // ID de categoría padre (null si es raíz)
-    
-    // SEO
+    handle: { type: String },
+    parent: { type: Number },
+    subcategories: [{ type: Number }],
     seoTitle: { type: String },
     seoDescription: { type: String },
-    
-    // Metadatos de Tiendanube
-    subcategories: [{ type: Number }], // IDs de subcategorías
     googleShoppingCategory: { type: String },
-    
-    // Fechas de Tiendanube
     createdAtTN: { type: Date },
     updatedAtTN: { type: Date },
-    
-    // Control de sincronización
     syncedAt: { type: Date, default: Date.now },
-    syncError: { type: String }, // Para debugging
+    syncError: { type: String },
   },
   { versionKey: false }
 );
 
-// Índices para búsquedas rápidas
+// Índices
 CategorySchema.index({ storeId: 1, categoryId: 1 }, { unique: true });
 CategorySchema.index({ storeId: 1, handle: 1 });
-CategorySchema.index({ storeId: 1, parent: 1 }); // Para obtener subcategorías
+CategorySchema.index({ storeId: 1, parent: 1 });
 
+// Transform para JSON
 CategorySchema.set("toJSON", {
   virtuals: true,
   versionKey: false,
-  transform: function (doc, ret: Record<string, any>) {
+  transform: function (doc, ret) {
     delete ret._id;
   },
 });
 
-export const CategoryModel = model("Category", CategorySchema);
-
-// Agregar al src/data/mongo/index.ts:
-// export * from './models/category.model';
+/**
+ * Modelo tipado
+ */
+export const CategoryModel = model<ICategoryDocument>("Category", CategorySchema);

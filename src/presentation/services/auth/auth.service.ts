@@ -1,5 +1,6 @@
 import { bcryptAdapter, envs, JWTAdapter } from "../../../config";
 import { UserModel } from "../../../data/mongo";
+import type { IUser, IUserDocument } from "../../../data/mongo/models/user.model";
 import { CustomError, LoginUserDto, RegisterUserDto, UserEntity } from "../../../domain";
 import { EmailService } from "./email.service";
 
@@ -12,7 +13,7 @@ export class AuthService {
 
     public async registerUser( registerUserDto: RegisterUserDto ) {
 
-        const existUser = await UserModel.findOne({ email: registerUserDto.email });
+        const existUser: IUserDocument | null = await UserModel.findOne({ email: registerUserDto.email });
         if (existUser) throw CustomError.badRequest('Email already in use');
         
         try {
@@ -43,7 +44,7 @@ export class AuthService {
 
     public async loginUser( loginUserDto: LoginUserDto ) {
 
-        const user = await UserModel.findOne({ email: loginUserDto.email });
+        const user: IUserDocument | null = await UserModel.findOne({ email: loginUserDto.email });
         if (!user) throw CustomError.badRequest('Email or password incorrect');
 
         const isMatching = await bcryptAdapter.compare( loginUserDto.password, user.password );
@@ -93,7 +94,7 @@ export class AuthService {
         const { email } = payload as { email: string };
         if ( !email ) throw CustomError.internalServerError('Token payload does not contain email');
 
-        const user = await UserModel.findOne({ email });
+        const user: IUserDocument | null = await UserModel.findOne({ email });
         if ( !user ) throw CustomError.internalServerError('User not found');
 
         user.emailVerified = true;

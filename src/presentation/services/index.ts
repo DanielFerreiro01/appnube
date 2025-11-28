@@ -27,6 +27,8 @@ export * from "./tiendanube/tiendanube-oauth.service";
 export * from "./tiendanube/tiendanube-webhooks.service";
 
 // ============================================
-// Product services (queries locales)
+// Product services - Category services (queries locales)
 // ============================================
 export * from "./product/product.service";
+
+export * from "./category/category.service";

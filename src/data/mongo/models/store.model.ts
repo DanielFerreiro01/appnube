@@ -1,6 +1,32 @@
-import mongoose from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
-const storeSchema = new mongoose.Schema(
+/**
+ * Interfaz base del documento
+ */
+export interface IStore {
+  name: string;
+  tiendanubeUrl: string;
+  description?: string;
+  logo?: string;
+  categories?: string[];
+  storeId?: number;
+  accessToken?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * Interfaz del documento de Mongoose
+ */
+export interface IStoreDocument extends IStore, Document {
+  // Virtual computed property
+  isConnected?: boolean;
+}
+
+/**
+ * Schema de Mongoose
+ */
+const StoreSchema = new Schema<IStoreDocument>(
   {
     name: {
       type: String,
@@ -21,16 +47,14 @@ const storeSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    // Campos para la integración con Tiendanube
     storeId: {
       type: Number,
-      sparse: true, // Permite null pero único si existe
+      sparse: true,
       unique: true,
     },
     accessToken: {
       type: String,
     },
-    // Campos de auditoría
     createdAt: {
       type: Date,
       default: Date.now,
@@ -43,20 +67,28 @@ const storeSchema = new mongoose.Schema(
   { versionKey: false }
 );
 
-// Actualizar updatedAt antes de guardar
-storeSchema.pre("save", function (next) {
+// Pre-save middleware
+StoreSchema.pre("save", function (next) {
   this.updatedAt = new Date();
   next();
 });
 
-storeSchema.set("toJSON", {
+// Virtual para isConnected
+StoreSchema.virtual("isConnected").get(function () {
+  return !!(this.storeId && this.accessToken);
+});
+
+// Transform para JSON
+StoreSchema.set("toJSON", {
   virtuals: true,
   versionKey: false,
-  transform: function (doc, ret: Record<string, any>) {
+  transform: function (doc, ret) {
     delete ret._id;
-    // No exponer el accessToken en las respuestas JSON
-    delete ret.accessToken;
+    delete ret.accessToken; // No exponer el token
   },
 });
 
-export const StoreModel = mongoose.model("Store", storeSchema);
+/**
+ * Modelo tipado
+ */
+export const StoreModel = model<IStoreDocument>("Store", StoreSchema);
