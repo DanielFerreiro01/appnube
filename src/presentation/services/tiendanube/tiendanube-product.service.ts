@@ -3,6 +3,7 @@ import { StoreModel, ProductModel, VariantModel, ImageModel} from "../../../data
 import type { IProduct } from "../../../data/mongo/models/product.model";
 import type { IVariant } from "../../../data/mongo/models/variant.model";
 import type { IImage } from "../../../data/mongo/models/image.model";
+import { ProductEntity } from "../../../domain/entities/product/product.entity";
 
 
 interface TiendanubeProduct {
@@ -320,8 +321,7 @@ export class TiendanubeProductService {
 
       const categoryIds = tnProduct.categories?.map((c) => c.id) ?? [];
 
-      // 🔥 Usar extractMultilangValue para name y description también
-      const productData: Partial<IProduct> = {
+      const productEntity = ProductEntity.fromObject({
         storeId,
         productId: tnProduct.id,
         name: this.extractMultilangValue(tnProduct.name, `Product ${tnProduct.id}`),
@@ -337,12 +337,12 @@ export class TiendanubeProductService {
         createdAtTN: new Date(tnProduct.created_at),
         syncedAt: new Date(),
         syncError: undefined
-      };
+      });
 
       // Guardar o actualizar producto
       const product = await ProductModel.findOneAndUpdate(
         { storeId, productId: tnProduct.id },
-        productData,
+        productEntity,
         { new: true, upsert: true }
       );
 

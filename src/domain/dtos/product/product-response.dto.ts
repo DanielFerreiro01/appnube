@@ -7,6 +7,8 @@ export class ProductResponseDTO {
     public readonly productId: number,
     public readonly name: string,
     public readonly price: number,
+
+    // Opcionales al final:
     public readonly handle?: string,
     public readonly permalink?: string,
     public readonly description?: string,

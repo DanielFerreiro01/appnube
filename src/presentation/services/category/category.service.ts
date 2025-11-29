@@ -1,6 +1,8 @@
 import { CategoryModel } from "../../../data/mongo";
 import type { ICategory } from "../../../data/mongo/models/category.model";
 import { CustomError } from "../../../domain";
+import { CategoryResponseDTO } from "../../../domain/dtos/category/category-response.dto";
+import { CategoryEntity } from "../../../domain/entities/category/category.entity";
 
 /**
  * Servicio para consultas de CATEGORÍAS
@@ -16,9 +18,15 @@ export class CategoryService {
    */
   async getCategoriesByStore(storeId: number) {
     try {
-      const categories = await CategoryModel.find({ storeId })
+      const categoriesData = await CategoryModel.find({ storeId })
         .sort({ name: 1 })
-        .lean() as ICategory[];
+        .lean<ICategory[]>();
+
+      const categories = categoriesData.map(c =>
+        CategoryResponseDTO.fromEntity(
+          CategoryEntity.fromObject(c)
+        )
+      );
 
       // Construir árbol jerárquico
       const tree = this.buildCategoryTree(categories);
@@ -44,26 +52,43 @@ export class CategoryService {
    */
   async getCategoryById(storeId: number, categoryId: number) {
     try {
-      const category = await CategoryModel.findOne({ storeId, categoryId }).lean() as ICategory | null;
+      const categoryData = await CategoryModel.findOne({ storeId, categoryId }).lean<ICategory | null>();
 
-      if (!category) {
+      if (!categoryData) {
         throw CustomError.notFound("Category not found");
       }
 
+      const category = CategoryResponseDTO.fromEntity(
+        CategoryEntity.fromObject(categoryData)
+      );
+
       // Obtener subcategorías si existen
-      const subcategories = category.subcategories && category.subcategories.length > 0
-        ? await CategoryModel.find({
-            storeId,
-            categoryId: { $in: category.subcategories },
-          }).lean() as ICategory[]
-        : [];
+      const subcategoriesData =
+        categoryData.subcategories && categoryData.subcategories.length > 0
+          ? await CategoryModel.find({
+              storeId,
+              categoryId: { $in: categoryData.subcategories },
+            }).lean<ICategory[]>()
+          : [];
+
+      const subcategories = subcategoriesData.map(sc =>
+        CategoryResponseDTO.fromEntity(
+          CategoryEntity.fromObject(sc)
+        )
+      );
 
       // Obtener categoría padre si existe
-      const parentCategory = category.parent
+      const parentCategoryData = categoryData.parent
         ? await CategoryModel.findOne({
             storeId,
-            categoryId: category.parent,
-          }).lean() as ICategory | null
+            categoryId: categoryData.parent,
+          }).lean<ICategory | null>()
+        : null;
+
+      const parentCategory = parentCategoryData
+        ? CategoryResponseDTO.fromEntity(
+            CategoryEntity.fromObject(parentCategoryData)
+          )
         : null;
 
       return {
@@ -79,6 +104,7 @@ export class CategoryService {
     }
   }
 
+
   /**
    * Obtiene categorías raíz (sin padre)
    * @param storeId - ID de Tiendanube
@@ -86,12 +112,18 @@ export class CategoryService {
    */
   async getRootCategories(storeId: number) {
     try {
-      const categories = await CategoryModel.find({
+      const categoriesData = await CategoryModel.find({
         storeId,
         parent: null,
       })
         .sort({ name: 1 })
-        .lean() as ICategory[];
+        .lean<ICategory[]>();
+
+      const categories = categoriesData.map(c =>
+        CategoryResponseDTO.fromEntity(
+          CategoryEntity.fromObject(c)
+        )
+      );
 
       return {
         categories,
@@ -105,6 +137,7 @@ export class CategoryService {
     }
   }
 
+
   /**
    * Obtiene subcategorías de una categoría
    * @param storeId - ID de Tiendanube
@@ -113,12 +146,18 @@ export class CategoryService {
    */
   async getSubcategories(storeId: number, parentId: number) {
     try {
-      const categories = await CategoryModel.find({
+      const categoriesData = await CategoryModel.find({
         storeId,
         parent: parentId,
       })
         .sort({ name: 1 })
-        .lean() as ICategory[];
+        .lean<ICategory[]>();
+
+      const categories = categoriesData.map(c =>
+        CategoryResponseDTO.fromEntity(
+          CategoryEntity.fromObject(c)
+        )
+      );
 
       return {
         categories,
@@ -141,7 +180,7 @@ export class CategoryService {
    */
   async searchCategories(storeId: number, searchTerm: string) {
     try {
-      const categories = await CategoryModel.find({
+      const categoriesData = await CategoryModel.find({
         storeId,
         $or: [
           { name: { $regex: searchTerm, $options: "i" } },
@@ -149,7 +188,13 @@ export class CategoryService {
         ],
       })
         .sort({ name: 1 })
-        .lean() as ICategory[];
+        .lean<ICategory[]>();
+
+      const categories = categoriesData.map(c =>
+        CategoryResponseDTO.fromEntity(
+          CategoryEntity.fromObject(c)
+        )
+      );
 
       return {
         categories,
@@ -164,6 +209,7 @@ export class CategoryService {
     }
   }
 
+
   /**
    * Obtiene el breadcrumb de una categoría
    * (Ruta completa: Padre > Hijo > Nieto)
@@ -176,22 +222,23 @@ export class CategoryService {
       const breadcrumb: Array<{ id: number; name: string; handle?: string }> = [];
       let currentCategoryId: number | null = categoryId;
 
-      // Recorrer hacia arriba hasta llegar a la raíz
       while (currentCategoryId) {
-        const category = await CategoryModel.findOne({
+        const categoryData = await CategoryModel.findOne({
           storeId,
           categoryId: currentCategoryId,
-        }).lean() as ICategory | null;
+        }).lean<ICategory | null>();
 
-        if (!category) break;
+        if (!categoryData) break;
+
+        const categoryEntity = CategoryEntity.fromObject(categoryData);
 
         breadcrumb.unshift({
-          id: category.categoryId,
-          name: category.name,
-          handle: category.handle,
+          id: categoryEntity.categoryId,
+          name: categoryEntity.name,
+          handle: categoryEntity.handle,
         });
 
-        currentCategoryId = category.parent || null;
+        currentCategoryId = categoryEntity.parent ?? null;
       }
 
       return {

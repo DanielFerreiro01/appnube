@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { CustomError } from "../../domain";
 import { PaginationDto } from "../../domain/dtos/shared/pagination.dto";
 import { ProductService } from "../services/product/product.service";
+import { ProductFiltersDTO } from "../../domain/dtos/product/product-filters.dto";
 
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
@@ -21,61 +22,25 @@ export class ProductController {
    */
   getProducts = async (req: Request, res: Response) => {
     const { storeId } = req.params;
-    const {
-      page = 1,
-      limit = 20,
-      published,
-      minPrice,
-      maxPrice,
-      inStock,
-      tags,
-      sort = "newest",
-      search,
-    } = req.query;
+    const { page = 1, limit = 20, sort = "newest" } = req.query;
 
-    const [error, paginationDto] = PaginationDto.create(
+    // ✅ NUEVO: Validar filtros con DTO
+    const [filterError, filtersDto] = ProductFiltersDTO.create(req.query);
+    if (filterError) return res.status(400).json({ error: filterError });
+
+    const [paginationError, paginationDto] = PaginationDto.create(
       Number(page),
       Number(limit)
     );
-
-    if (error) return res.status(400).json({ error });
+    if (paginationError) return res.status(400).json({ error: paginationError });
 
     try {
-      // Construir filtros
-      const filters: any = {
-        storeId: Number(storeId),
-      };
-
-      if (published !== undefined) {
-        filters.published = published === "true";
-      }
-
-      if (minPrice !== undefined) {
-        filters.minPrice = Number(minPrice);
-      }
-
-      if (maxPrice !== undefined) {
-        filters.maxPrice = Number(maxPrice);
-      }
-
-      if (inStock !== undefined) {
-        filters.inStock = inStock === "true";
-      }
-
-      if (tags) {
-        filters.tags = String(tags).split(",");
-      }
-
-      if (search) {
-        filters.searchTerm = String(search);
-      }
-
       const products = await this.productService.getProducts(
-        filters,
+        Number(storeId),
+        filtersDto!,
         paginationDto!,
         sort as any
       );
-
       return res.json(products);
     } catch (error) {
       this.handleError(error, res);

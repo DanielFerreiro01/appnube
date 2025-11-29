@@ -9,12 +9,14 @@ export class CategoryEntity {
     public readonly description?: string,
     public readonly handle?: string,
     public readonly parent?: number,
+    public readonly subcategories: number[] = [],
     public readonly seoTitle?: string,
     public readonly seoDescription?: string,
-    public readonly subcategories: number[] = [],
     public readonly googleShoppingCategory?: string,
     public readonly createdAt?: Date,
+    public readonly updatedAt?: Date,
     public readonly syncedAt?: Date,
+    public readonly syncError?: string,
   ) {}
 
   static fromObject(obj: { [key: string]: any }) {
@@ -27,18 +29,20 @@ export class CategoryEntity {
       description,
       handle,
       parent,
+      subcategories,
       seoTitle,
       seoDescription,
-      subcategories,
       googleShoppingCategory,
       createdAt,
+      updatedAt,
       syncedAt,
+      syncError
     } = obj;
 
-    if (!_id && !id) throw CustomError.badRequest('Category id is required');
-    if (!storeId) throw CustomError.badRequest('Store id is required');
-    if (!categoryId) throw CustomError.badRequest('Category ID from Tiendanube is required');
-    if (!name) throw CustomError.badRequest('Category name is required');
+    if (!_id && !id) throw CustomError.badRequest("Category id is required");
+    if (!storeId) throw CustomError.badRequest("Store id is required");
+    if (!categoryId) throw CustomError.badRequest("Category ID from Tiendanube is required");
+    if (!name) throw CustomError.badRequest("Category name is required");
 
     return new CategoryEntity(
       _id || id,
@@ -48,12 +52,16 @@ export class CategoryEntity {
       description,
       handle,
       parent,
+      subcategories ?? [],
       seoTitle,
       seoDescription,
-      subcategories || [],
       googleShoppingCategory,
+
       createdAt || new Date(),
+      updatedAt,
       syncedAt,
+
+      syncError
     );
   }
 }

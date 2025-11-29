@@ -1,36 +1,13 @@
+import { CustomError } from "../../../domain";
 import { ProductModel, VariantModel, ImageModel } from "../../../data/mongo";
 import type { IProduct } from "../../../data/mongo/models/product.model";
 import type { IVariant } from "../../../data/mongo/models/variant.model";
 import type { IImage } from "../../../data/mongo/models/image.model";
-import { CustomError } from "../../../domain";
 import { PaginationDto } from "../../../domain/dtos/shared/pagination.dto";
+import { ProductResponseDTO } from "../../../domain/dtos/product/product-response.dto";
+import { ProductFiltersDTO } from "../../../domain/dtos/product/product-filters.dto";
+import { ProductEntity } from "../../../domain/entities/product/product.entity";
 import { FilterQuery } from "mongoose";
-
-/**
- * Opciones de filtrado para productos
- */
-interface ProductFilters {
-  storeId: number;
-  published?: boolean;
-  minPrice?: number;
-  maxPrice?: number;
-  inStock?: boolean;
-  tags?: string[];
-  searchTerm?: string;
-}
-
-/**
- * Filtros limpios para productos
- */
-export interface SanitizedProductFilters {
-  storeId: number;
-  published?: boolean;
-  minPrice?: number;
-  maxPrice?: number;
-  inStock?: boolean;
-  tags?: string[];
-  searchTerm?: string;
-}
 
 
 /**
@@ -116,7 +93,8 @@ export class ProductService {
    * @returns Productos filtrados con paginación
    */
   async getProducts(
-    filters: ProductFilters,
+    storeId: number,
+    filtersDto: ProductFiltersDTO,
     paginationDto: PaginationDto,
     sortBy: SortOption = "newest"
   ) {
@@ -124,37 +102,37 @@ export class ProductService {
       const { page, limit } = paginationDto;
       const skip = (page - 1) * limit;
 
-      // Construir query de filtros
-      const query: Record<string, unknown> = { storeId: filters.storeId };
+      // Construir query de filtros usando el DTO
+      const query: Record<string, unknown> = { storeId };
 
-      if (filters.published !== undefined) {
-        query.published = filters.published;
+      if (filtersDto.published !== undefined) {
+        query.published = filtersDto.published;
       }
 
-      if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+      if (filtersDto.minPrice !== undefined || filtersDto.maxPrice !== undefined) {
         query.price = {} as Record<string, number>;
 
-        if (filters.minPrice !== undefined)
-          (query.price as Record<string, number>).$gte = filters.minPrice;
+        if (filtersDto.minPrice !== undefined)
+          (query.price as Record<string, number>).$gte = filtersDto.minPrice;
 
-        if (filters.maxPrice !== undefined)
-          (query.price as Record<string, number>).$lte = filters.maxPrice;
+        if (filtersDto.maxPrice !== undefined)
+          (query.price as Record<string, number>).$lte = filtersDto.maxPrice;
       }
 
-      if (filters.tags && filters.tags.length > 0) {
-        query.tags = { $in: filters.tags };
+      if (filtersDto.tags && filtersDto.tags.length > 0) {
+        query.tags = { $in: filtersDto.tags };
       }
 
-      if (filters.searchTerm) {
+      if (filtersDto.searchTerm) {
         query.$or = [
-          { name: { $regex: filters.searchTerm, $options: "i" } },
-          { description: { $regex: filters.searchTerm, $options: "i" } },
-          { tags: { $regex: filters.searchTerm, $options: "i" } },
+          { name: { $regex: filtersDto.searchTerm, $options: "i" } },
+          { description: { $regex: filtersDto.searchTerm, $options: "i" } },
+          { tags: { $regex: filtersDto.searchTerm, $options: "i" } },
         ];
       }
 
       // Determinar ordenamiento
-      let sort: Record<string, 1 | -1> = { updatedAtTN: -1 }; // Default: newest
+      let sort: Record<string, 1 | -1> = { updatedAtTN: -1 };
       switch (sortBy) {
         case "oldest":
           sort = { createdAtTN: 1 };
@@ -177,23 +155,39 @@ export class ProductService {
           break;
       }
 
-      // Si se filtra por stock, necesitamos hacer un lookup con variants
-      if (filters.inStock !== undefined) {
+      // Si se filtra por stock, usar aggregation pipeline
+      if (filtersDto.inStock !== undefined) {
         const products = await this.getProductsWithStock(
           query,
           skip,
           limit,
           sort,
-          filters.inStock
+          filtersDto.inStock
         );
-        return products;
+        
+        // ✅ NUEVO: Convertir a DTOs
+        const productsDto = products.products.map(p => 
+          ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+        );
+
+        return {
+          products: productsDto,
+          pagination: products.pagination,
+          filters: filtersDto, // ← Ya es el DTO
+          sortBy,
+        };
       }
 
       // Query normal sin filtro de stock
-      const [products, total] = await Promise.all([
+      const [productsData, total] = await Promise.all([
         ProductModel.find(query).skip(skip).limit(limit).sort(sort).lean<IProduct[]>(),
         ProductModel.countDocuments(query),
       ]);
+
+      // ✅ NUEVO: Convertir a DTOs
+      const products = productsData.map(p => 
+        ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+      );
 
       return {
         products,
@@ -205,7 +199,7 @@ export class ProductService {
           hasNextPage: page < Math.ceil(total / limit),
           hasPrevPage: page > 1,
         },
-        filters: this.sanitizeFilters(filters),
+        filters: filtersDto, // ← Ya es el DTO
         sortBy,
       };
     } catch (error) {
@@ -214,28 +208,16 @@ export class ProductService {
       );
     }
   }
-
   /**
-   * Obtiene productos filtrados por stock (requiere lookup con variants)
-   */
+ * Obtiene productos filtrados por stock (requiere lookup con variants)
+ */
   private async getProductsWithStock(
     baseQuery: any,
     skip: number,
     limit: number,
     sort: any,
     inStock: boolean
-  ) : Promise<{
-      products: IProduct[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-        hasNextPage: boolean;
-        hasPrevPage: boolean;
-      };
-    }> 
-  {
+  ) {
     const products = await ProductModel.aggregate<IProduct>([
       { $match: baseQuery },
       {
@@ -270,7 +252,7 @@ export class ProductService {
       { $limit: limit },
       {
         $project: {
-          variants: 0, // No incluir las variantes en el resultado
+          variants: 0,
         },
       },
     ]);
@@ -310,7 +292,7 @@ export class ProductService {
     const totalCount = total[0]?.total || 0;
 
     return {
-      products,
+      products, // ← Ya está tipado como IProduct[]
       pagination: {
         page: Math.floor(skip / limit) + 1,
         limit,
@@ -340,30 +322,22 @@ export class ProductService {
         throw CustomError.notFound("Product not found");
       }
 
+      // Cálculos de stats...
       const safeVariants = variants ?? [];
       const safeImages = images ?? [];
-
-      // Stock
-      const totalStock = safeVariants.reduce(
-        (sum, v) => sum + (v.stock ?? 0),
-        0
-      );
-
-      // Prices
-      const prices = safeVariants
-        .map((v) => v.price)
-        .filter((p): p is number => typeof p === "number");
-
+      const totalStock = safeVariants.reduce((sum, v) => sum + (v.stock ?? 0), 0);
+      const prices = safeVariants.map((v) => v.price).filter((p): p is number => typeof p === "number");
       const minPrice = prices.length ? Math.min(...prices) : product.price;
       const maxPrice = prices.length ? Math.max(...prices) : product.price;
+      const averagePrice = prices.length ? prices.reduce((acc, p) => acc + p, 0) / prices.length : product.price;
 
-      const averagePrice =
-        prices.length
-          ? prices.reduce((acc, p) => acc + p, 0) / prices.length
-          : product.price;
+      // ✅ NUEVO: Convertir a DTO
+      const productDto = ProductResponseDTO.fromEntity(
+        ProductEntity.fromObject(product)
+      );
 
       return {
-        product,
+        product: productDto,
         variants: safeVariants,
         images: safeImages,
         stats: {
@@ -378,13 +352,9 @@ export class ProductService {
       };
     } catch (error) {
       if (error instanceof CustomError) throw error;
-
-      throw CustomError.internalServerError(
-        `Error getting product: ${error}`
-      );
+      throw CustomError.internalServerError(`Error getting product: ${error}`);
     }
   }
-
 
   /**
    * Obtiene productos relacionados basados en tags
@@ -393,16 +363,9 @@ export class ProductService {
    * @param limit - Cantidad de productos relacionados
    * @returns Productos relacionados
    */
- async getRelatedProducts(
-  storeId: number,
-  productId: number,
-  limit: number = 6
-  ) {
+  async getRelatedProducts(storeId: number, productId: number, limit: number = 6) {
     try {
-      const currentProduct = await ProductModel.findOne({
-        storeId,
-        productId,
-      }).lean<IProduct>();
+      const currentProduct = await ProductModel.findOne({ storeId, productId }).lean<IProduct>();
 
       if (!currentProduct) {
         throw CustomError.notFound("Product not found");
@@ -410,11 +373,10 @@ export class ProductService {
 
       const tags = currentProduct.tags ?? [];
 
-      let relatedProducts: IProduct[];
+      let relatedProductsData: IProduct[];
 
       if (tags.length > 0) {
-        // Buscar productos con tags similares
-        relatedProducts = await ProductModel.find({
+        relatedProductsData = await ProductModel.find({
           storeId,
           productId: { $ne: productId },
           published: true,
@@ -424,8 +386,7 @@ export class ProductService {
           .sort({ updatedAtTN: -1 })
           .lean<IProduct[]>();
       } else {
-        // Fallback: productos recientes del mismo store
-        relatedProducts = await ProductModel.find({
+        relatedProductsData = await ProductModel.find({
           storeId,
           productId: { $ne: productId },
           published: true,
@@ -434,6 +395,11 @@ export class ProductService {
           .sort({ updatedAtTN: -1 })
           .lean<IProduct[]>();
       }
+
+      // ✅ NUEVO: Convertir a DTOs
+      const relatedProducts = relatedProductsData.map(p =>
+        ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+      );
 
       return {
         relatedProducts,
@@ -445,9 +411,7 @@ export class ProductService {
       };
     } catch (error) {
       if (error instanceof CustomError) throw error;
-      throw CustomError.internalServerError(
-        `Error getting related products: ${error}`
-      );
+      throw CustomError.internalServerError(`Error getting related products: ${error}`);
     }
   }
 
@@ -503,7 +467,7 @@ export class ProductService {
       const { page, limit } = paginationDto;
       const skip = (page - 1) * limit;
 
-      const [products, total] = await Promise.all([
+      const [productsData, total] = await Promise.all([
         ProductModel.find({
           storeId,
           tags: tag,
@@ -512,13 +476,18 @@ export class ProductService {
           .skip(skip)
           .limit(limit)
           .sort({ updatedAtTN: -1 })
-          .lean<IProduct[]>(),   // <-- TIPADO IMPORTANTE
+          .lean<IProduct[]>(),
         ProductModel.countDocuments({
           storeId,
           tags: tag,
           published: true,
         }),
       ]);
+
+      // ✅ NUEVO: Convertir a DTOs
+      const products = productsData.map(p =>
+        ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+      );
 
       return {
         products,
@@ -533,9 +502,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      throw CustomError.internalServerError(
-        `Error getting products by tag: ${error}`
-      );
+      throw CustomError.internalServerError(`Error getting products by tag: ${error}`);
     }
   }
 
@@ -549,13 +516,8 @@ export class ProductService {
  
   async getFeaturedProducts(storeId: number, limit: number = 12) {
     try {
-      const products = await ProductModel.aggregate<FeaturedProduct[]>([
-        {
-          $match: {
-            storeId,
-            published: true,
-          },
-        },
+      const productsData = await ProductModel.aggregate<IProduct>([
+        { $match: { storeId, published: true } },
         {
           $lookup: {
             from: "variants",
@@ -580,28 +542,23 @@ export class ProductService {
             totalStock: { $sum: "$variants.stock" },
           },
         },
-        {
-          $match: {
-            totalStock: { $gt: 0 },
-          },
-        },
+        { $match: { totalStock: { $gt: 0 } } },
         { $sort: { updatedAtTN: -1 } },
         { $limit: limit },
-        {
-          $project: {
-            variants: 0,
-          },
-        },
+        { $project: { variants: 0 } },
       ]);
+
+      // ✅ NUEVO: Convertir a DTOs
+      const products = productsData.map(p =>
+        ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+      );
 
       return {
         products,
         total: products.length,
       };
     } catch (error) {
-      throw CustomError.internalServerError(
-        `Error getting featured products: ${error}`
-      );
+      throw CustomError.internalServerError(`Error getting featured products: ${error}`);
     }
   }
 
@@ -631,7 +588,7 @@ export class ProductService {
         ],
       };
 
-      const [products, total] = await Promise.all([
+      const [productsData, total] = await Promise.all([
         ProductModel.find(query)
           .skip(skip)
           .limit(limit)
@@ -639,6 +596,11 @@ export class ProductService {
           .lean<IProduct[]>(),
         ProductModel.countDocuments(query),
       ]);
+
+      // ✅ NUEVO: Convertir a DTOs
+      const products = productsData.map(p =>
+        ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
+      );
 
       return {
         products,
@@ -653,9 +615,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      throw CustomError.internalServerError(
-        `Error searching products: ${error}`
-      );
+      throw CustomError.internalServerError(`Error searching products: ${error}`);
     }
   }
 
@@ -792,58 +752,6 @@ export class ProductService {
         `Error getting product stats: ${error}`
       );
     }
-  }
-
-
-  /**
-   * Limpia y sanitiza los filtros para la respuesta
-   */
-  private sanitizeFilters(filters: ProductFilters) {
-    const query: Record<string, any> = {
-      storeId: filters.storeId,
-    };
-
-    // published
-    if (filters.published !== undefined) {
-      query.published = filters.published;
-    }
-
-    // price range
-    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-      query.price = {};
-
-      if (filters.minPrice !== undefined) {
-        query.price.$gte = filters.minPrice;
-      }
-      if (filters.maxPrice !== undefined) {
-        query.price.$lte = filters.maxPrice;
-      }
-    }
-
-    // stock filter
-    if (filters.inStock !== undefined) {
-      query.variants = {
-        $elemMatch: {
-          stock: filters.inStock ? { $gt: 0 } : { $eq: 0 }
-        }
-      };
-    }
-
-    // tags
-    if (filters.tags && filters.tags.length > 0) {
-      query.tags = { $in: filters.tags };
-    }
-
-    // text search
-    if (filters.searchTerm) {
-      query.$or = [
-        { name: { $regex: filters.searchTerm, $options: "i" } },
-        { description: { $regex: filters.searchTerm, $options: "i" } },
-        { tags: { $regex: filters.searchTerm, $options: "i" } },
-      ];
-    }
-
-    return query;
   }
 
 }

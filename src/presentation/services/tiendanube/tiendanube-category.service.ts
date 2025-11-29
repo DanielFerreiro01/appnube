@@ -1,6 +1,7 @@
 import { CustomError } from "../../../domain";
 import { StoreModel, CategoryModel } from "../../../data/mongo";
 import type { ICategory } from "../../../data/mongo/models/category.model";
+import { CategoryEntity } from "../../../domain/entities/category/category.entity";
 
 interface TiendanubeCategory {
   id: number;
@@ -287,52 +288,56 @@ private extractMultilangValue(value: any, fallback: string = ''): string {
 /**
  * Guarda o actualiza una categoría
  */
-private async saveCategory(
+  private async saveCategory(
     storeId: number,
-    tnCategory: TiendanubeCategory | TiendanubeCategory[]
-  ): Promise<ICategory[]> {
+    tnCategory: TiendanubeCategory
+  ): Promise<CategoryEntity> {
     try {
-      // Normalizar: si viene un solo objeto → convertirlo en array
-      const categoriesArray = Array.isArray(tnCategory)
-        ? tnCategory
-        : [tnCategory];
-
-      // 1. Mapear categorías Tiendanube → ICategory
-      const mappedCategories: Partial<ICategory>[] = categoriesArray.map((cat) => ({
+      const categoryEntity = CategoryEntity.fromObject({
+        id: `${storeId}-${tnCategory.id}`,
         storeId,
-        categoryId: cat.id,
-        name: this.extractMultilangValue(cat.name, "Sin nombre"),
-        description: this.extractMultilangValue(cat.description) ?? undefined,
-        handle: this.extractMultilangValue(cat.handle) ?? undefined,
-        parent: cat.parent ?? undefined,
-        subcategories: cat.subcategories ?? [],
-        seoTitle: this.extractMultilangValue(cat.seo_title) ?? undefined,
-        seoDescription: this.extractMultilangValue(cat.seo_description) ?? undefined,
-        googleShoppingCategory: cat.google_shopping_category ?? undefined,
-        createdAtTN: new Date(cat.created_at),
-        updatedAtTN: new Date(cat.updated_at),
+        categoryId: tnCategory.id,
+        name: this.extractMultilangValue(tnCategory.name, "Sin nombre"),
+        description: this.extractMultilangValue(tnCategory.description) ?? undefined,
+        handle: this.extractMultilangValue(tnCategory.handle) ?? undefined,
+        parent: tnCategory.parent ?? undefined,
+        subcategories: tnCategory.subcategories ?? [],
+        seoTitle: this.extractMultilangValue(tnCategory.seo_title) ?? undefined,
+        seoDescription: this.extractMultilangValue(tnCategory.seo_description) ?? undefined,
+        googleShoppingCategory: tnCategory.google_shopping_category ?? undefined,
+        createdAtTN: new Date(tnCategory.created_at),
+        updatedAtTN: new Date(tnCategory.updated_at),
         syncedAt: new Date(),
         syncError: undefined,
-      }));
+      });
 
-      // 2. Borrar categorías previas de la store
-      await CategoryModel.deleteMany({ storeId });
+      const saved = await CategoryModel.findOneAndUpdate(
+        { storeId, categoryId: tnCategory.id },
+        categoryEntity,
+        { new: true, upsert: true }
+      );
 
-      // 3. Insertar las nuevas
-      const insertedDocs = await CategoryModel.insertMany(mappedCategories);
+      if (!saved) throw new Error("Failed to save category");
 
-      // 4. Retornar estrictamente tipado como ICategory[]
-      return insertedDocs.map((doc) => doc.toObject() as ICategory);
+      return CategoryEntity.fromObject(saved.toObject());
 
     } catch (error) {
+      await CategoryModel.findOneAndUpdate(
+        { storeId, categoryId: tnCategory.id },
+        {
+          syncError: error instanceof Error ? error.message : String(error),
+          syncedAt: new Date(),
+        },
+        { upsert: true }
+      );
+
       throw new Error(
-        `Error saving categories for store ${storeId}: ${
+        `Error saving category ${tnCategory.id}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-
 
 
   /**
