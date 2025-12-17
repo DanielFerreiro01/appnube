@@ -9,7 +9,6 @@ import { ProductFiltersDTO } from "../../../domain/dtos/product/product-filters.
 import { ProductEntity } from "../../../domain/entities/product/product.entity";
 import { FilterQuery } from "mongoose";
 
-
 /**
  * Opciones de ordenamiento para productos
  */
@@ -29,11 +28,6 @@ type TagCount = {
   tag: string;
   count: number;
 };
-
-/**
- * Producto destacado con stock total
- */
-type FeaturedProduct = IProduct & { totalStock: number };
 
 /**
  * Rango de precios
@@ -69,7 +63,7 @@ export interface ProductStats {
   priceRange: PriceRange;
   topTags: Array<{ tag: string; count: number }>;
   totalTags: number;
-  averageVariantsPerProduct: string; // porque usas .toFixed(2)
+  averageVariantsPerProduct: string;
 }
 
 interface StockAggregate {
@@ -77,7 +71,6 @@ interface StockAggregate {
   withStock: number;
   withoutStock: number;
 }
-
 
 /**
  * Servicio para gestión de productos
@@ -87,7 +80,8 @@ export class ProductService {
 
   /**
    * Obtiene productos con filtros y paginación avanzada
-   * @param filters - Filtros a aplicar
+   * @param storeId - ID de Tiendanube
+   * @param filtersDto - Filtros validados mediante DTO
    * @param paginationDto - Opciones de paginación
    * @param sortBy - Tipo de ordenamiento
    * @returns Productos filtrados con paginación
@@ -157,7 +151,7 @@ export class ProductService {
 
       // Si se filtra por stock, usar aggregation pipeline
       if (filtersDto.inStock !== undefined) {
-        const products = await this.getProductsWithStock(
+        const result = await this.getProductsWithStock(
           query,
           skip,
           limit,
@@ -165,15 +159,15 @@ export class ProductService {
           filtersDto.inStock
         );
         
-        // ✅ NUEVO: Convertir a DTOs
-        const productsDto = products.products.map(p => 
+        // ✅ Convertir a DTOs
+        const productsDto = result.products.map(p => 
           ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
         );
 
         return {
           products: productsDto,
-          pagination: products.pagination,
-          filters: filtersDto, // ← Ya es el DTO
+          pagination: result.pagination, // ✅ FIX: Usar result.pagination
+          filters: filtersDto,
           sortBy,
         };
       }
@@ -184,7 +178,7 @@ export class ProductService {
         ProductModel.countDocuments(query),
       ]);
 
-      // ✅ NUEVO: Convertir a DTOs
+      // ✅ Convertir a DTOs
       const products = productsData.map(p => 
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -199,7 +193,7 @@ export class ProductService {
           hasNextPage: page < Math.ceil(total / limit),
           hasPrevPage: page > 1,
         },
-        filters: filtersDto, // ← Ya es el DTO
+        filters: filtersDto,
         sortBy,
       };
     } catch (error) {
@@ -208,16 +202,28 @@ export class ProductService {
       );
     }
   }
+
   /**
- * Obtiene productos filtrados por stock (requiere lookup con variants)
- */
+   * Obtiene productos filtrados por stock (requiere lookup con variants)
+   * @private
+   */
   private async getProductsWithStock(
     baseQuery: any,
     skip: number,
     limit: number,
     sort: any,
     inStock: boolean
-  ) {
+  ): Promise<{
+    products: IProduct[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
     const products = await ProductModel.aggregate<IProduct>([
       { $match: baseQuery },
       {
@@ -292,7 +298,7 @@ export class ProductService {
     const totalCount = total[0]?.total || 0;
 
     return {
-      products, // ← Ya está tipado como IProduct[]
+      products,
       pagination: {
         page: Math.floor(skip / limit) + 1,
         limit,
@@ -322,7 +328,7 @@ export class ProductService {
         throw CustomError.notFound("Product not found");
       }
 
-      // Cálculos de stats...
+      // Cálculos de stats
       const safeVariants = variants ?? [];
       const safeImages = images ?? [];
       const totalStock = safeVariants.reduce((sum, v) => sum + (v.stock ?? 0), 0);
@@ -331,7 +337,7 @@ export class ProductService {
       const maxPrice = prices.length ? Math.max(...prices) : product.price;
       const averagePrice = prices.length ? prices.reduce((acc, p) => acc + p, 0) / prices.length : product.price;
 
-      // ✅ NUEVO: Convertir a DTO
+      // ✅ Convertir a DTO
       const productDto = ProductResponseDTO.fromEntity(
         ProductEntity.fromObject(product)
       );
@@ -396,7 +402,7 @@ export class ProductService {
           .lean<IProduct[]>();
       }
 
-      // ✅ NUEVO: Convertir a DTOs
+      // ✅ Convertir a DTOs
       const relatedProducts = relatedProductsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -415,13 +421,12 @@ export class ProductService {
     }
   }
 
-
   /**
    * Obtiene todos los tags únicos de una tienda
    * @param storeId - ID de Tiendanube
    * @returns Lista de tags con conteo
    */
-  async getTags(storeId: number) {
+  async getTags(storeId: number): Promise<TagsResult> {
     try {
       const tags = await ProductModel.aggregate<TagCount>([
         { $match: { storeId, published: true } },
@@ -484,7 +489,7 @@ export class ProductService {
         }),
       ]);
 
-      // ✅ NUEVO: Convertir a DTOs
+      // ✅ Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -506,14 +511,12 @@ export class ProductService {
     }
   }
 
-
   /**
    * Obtiene productos destacados (publicados y con stock)
    * @param storeId - ID de Tiendanube
    * @param limit - Cantidad de productos
    * @returns Productos destacados
    */
- 
   async getFeaturedProducts(storeId: number, limit: number = 12) {
     try {
       const productsData = await ProductModel.aggregate<IProduct>([
@@ -548,7 +551,7 @@ export class ProductService {
         { $project: { variants: 0 } },
       ]);
 
-      // ✅ NUEVO: Convertir a DTOs
+      // ✅ Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -561,7 +564,6 @@ export class ProductService {
       throw CustomError.internalServerError(`Error getting featured products: ${error}`);
     }
   }
-
 
   /**
    * Busca productos por múltiples criterios
@@ -597,7 +599,7 @@ export class ProductService {
         ProductModel.countDocuments(query),
       ]);
 
-      // ✅ NUEVO: Convertir a DTOs
+      // ✅ Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -619,13 +621,12 @@ export class ProductService {
     }
   }
 
-
   /**
    * Obtiene el rango de precios de una tienda
    * @param storeId - ID de Tiendanube
    * @returns Rango de precios
    */
-  async getPriceRange(storeId: number) {
+  async getPriceRange(storeId: number): Promise<PriceRange> {
     try {
       const result = await ProductModel.aggregate<PriceRangeAggregate>([
         { $match: { storeId, published: true } },
@@ -753,5 +754,4 @@ export class ProductService {
       );
     }
   }
-
 }
