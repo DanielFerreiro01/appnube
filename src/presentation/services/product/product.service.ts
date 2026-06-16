@@ -159,14 +159,14 @@ export class ProductService {
           filtersDto.inStock
         );
         
-        // ✅ Convertir a DTOs
+        // Convertir a DTOs
         const productsDto = result.products.map(p => 
           ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
         );
 
         return {
           products: productsDto,
-          pagination: result.pagination, // ✅ FIX: Usar result.pagination
+          pagination: result.pagination, // FIX: Usar result.pagination
           filters: filtersDto,
           sortBy,
         };
@@ -178,7 +178,7 @@ export class ProductService {
         ProductModel.countDocuments(query),
       ]);
 
-      // ✅ Convertir a DTOs
+      // Convertir a DTOs
       const products = productsData.map(p => 
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -337,7 +337,7 @@ export class ProductService {
       const maxPrice = prices.length ? Math.max(...prices) : product.price;
       const averagePrice = prices.length ? prices.reduce((acc, p) => acc + p, 0) / prices.length : product.price;
 
-      // ✅ Convertir a DTO
+      // Convertir a DTO
       const productDto = ProductResponseDTO.fromEntity(
         ProductEntity.fromObject(product)
       );
@@ -402,7 +402,7 @@ export class ProductService {
           .lean<IProduct[]>();
       }
 
-      // ✅ Convertir a DTOs
+      // Convertir a DTOs
       const relatedProducts = relatedProductsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -489,7 +489,7 @@ export class ProductService {
         }),
       ]);
 
-      // ✅ Convertir a DTOs
+      // Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -551,7 +551,7 @@ export class ProductService {
         { $project: { variants: 0 } },
       ]);
 
-      // ✅ Convertir a DTOs
+      // Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
@@ -599,7 +599,7 @@ export class ProductService {
         ProductModel.countDocuments(query),
       ]);
 
-      // ✅ Convertir a DTOs
+      // Convertir a DTOs
       const products = productsData.map(p =>
         ProductResponseDTO.fromEntity(ProductEntity.fromObject(p))
       );
