@@ -12,10 +12,10 @@ export class TiendanubeOAuthRoutes {
 
     if (!clientId || !clientSecret) {
       console.warn(
-        "⚠️  WARNING: Tiendanube OAuth credentials not configured. OAuth flow will not work."
+        "WARNING: Tiendanube OAuth credentials not configured. OAuth flow will not work."
       );
       console.warn(
-        "   Add TIENDANUBE_CLIENT_ID and TIENDANUBE_CLIENT_SECRET to your .env file"
+        "Add TIENDANUBE_CLIENT_ID and TIENDANUBE_CLIENT_SECRET to your .env file"
       );
     }
 
