@@ -10,7 +10,7 @@ interface TiendanubeProduct {
   id: number;
   name: { es: string };
   description: { es: string };
-  handle: string | { es: string }; // 🔥 Puede ser string u objeto
+  handle: string | { es: string };
   attributes: Array<{ es: string }>;
   published: boolean;
   free_shipping: boolean;
@@ -267,7 +267,7 @@ export class TiendanubeProductService {
   }
 
   /**
-   * 🔥 Helper para extraer valores multiidioma de Tiendanube
+   * Helper para extraer valores multiidioma de Tiendanube
    * Igual que en tiendanube-category.service.ts
    */
   private extractMultilangValue(value: any, fallback: string = ''): string {
@@ -296,7 +296,7 @@ export class TiendanubeProductService {
     try {
       const basePrice = parseFloat(tnProduct.variants[0]?.price || "0");
 
-      // 🔥 Extraer handle usando el helper
+      // Extraer handle usando el helper
       let finalHandle = this.extractMultilangValue(tnProduct.handle);
 
       const permalink =
@@ -387,7 +387,7 @@ export class TiendanubeProductService {
 
       return product;
     } catch (error) {
-      // 🔥 Registrar error en el producto para debugging
+      // Registrar error en el producto para debugging
       await ProductModel.findOneAndUpdate(
         { storeId, productId: tnProduct.id },
         {
