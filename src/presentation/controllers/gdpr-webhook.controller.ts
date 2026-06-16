@@ -13,7 +13,7 @@ import { StoreModel, ProductModel, VariantModel, ImageModel, CategoryModel, Favo
 export class GDPRWebhookController {
   
   /**
-   * 🧹 STORE REDACT (GDPR)
+   * STORE REDACT (GDPR)
    * Tiendanube lo llama cuando la tienda solicita eliminar
    * TODOS los datos personales de sus clientes
    * 
@@ -23,13 +23,13 @@ export class GDPRWebhookController {
     try {
       const { shop_id } = req.body;
 
-      console.log("🧹 STORE REDACT (GDPR):", { shop_id });
+      console.log("STORE REDACT (GDPR):", { shop_id });
 
       if (!shop_id) {
         return res.status(400).json({ error: "Missing shop_id" });
       }
 
-      // 👉 Aquí deberías borrar datos PERSONALES de clientes
+      // Aquí deberías borrar datos PERSONALES de clientes
       // En tu caso actual NO almacenas datos personales de clientes
       // Solo productos, categorías, etc.
 
@@ -39,7 +39,7 @@ export class GDPRWebhookController {
       // - Datos de contacto
       // Bórralos aquí
 
-      console.log(`✅ Store redact completed for shop_id ${shop_id}`);
+      console.log(`Store redact completed for shop_id ${shop_id}`);
 
       return res.status(200).json({
         message: "Store customer data redacted",
@@ -49,7 +49,7 @@ export class GDPRWebhookController {
       });
 
     } catch (error) {
-      console.error("❌ Error in storeRedact:", error);
+      console.error("Error in storeRedact:", error);
       return res.status(500).json({
         error: "Internal server error",
         message: String(error)
@@ -58,7 +58,7 @@ export class GDPRWebhookController {
   }
 
   /**
-   * 🧹 CUSTOMER REDACT (GDPR)
+   * CUSTOMER REDACT (GDPR)
    * Tiendanube lo llama cuando un cliente específico
    * solicita eliminar sus datos personales
    * 
@@ -78,7 +78,7 @@ export class GDPRWebhookController {
         return res.status(400).json({ error: "Missing shop_id or customer data" });
       }
 
-      // 👉 Si guardas datos de clientes, bórralos aquí
+      // Si guardas datos de clientes, bórralos aquí
       // Por ejemplo:
       // - Favoritos vinculados al email del cliente
       // - Direcciones guardadas
@@ -87,7 +87,7 @@ export class GDPRWebhookController {
       // Ejemplo si guardas favoritos por email:
       // await FavoriteModel.deleteMany({ customerEmail: customer.email });
 
-      console.log(`✅ Customer ${customer.id} data redacted`);
+      console.log(`Customer ${customer.id} data redacted`);
 
       return res.status(200).json({ 
         message: "Customer data redacted",
@@ -98,7 +98,7 @@ export class GDPRWebhookController {
       });
 
     } catch (error) {
-      console.error("❌ Error in customerRedact:", error);
+      console.error("Error in customerRedact:", error);
       return res.status(500).json({ 
         error: "Internal server error",
         message: String(error)
@@ -107,7 +107,7 @@ export class GDPRWebhookController {
   }
 
   /**
-   * 🔍 CUSTOMER DATA REQUEST (GDPR)
+   * CUSTOMER DATA REQUEST (GDPR)
    * Tiendanube lo llama cuando un cliente solicita
    * acceder a TODOS sus datos personales que tu app almacena
    * 
@@ -117,7 +117,7 @@ export class GDPRWebhookController {
     try {
       const { shop_id, customer } = req.body;
 
-      console.log("🔍 CUSTOMER DATA REQUEST (GDPR):", { 
+      console.log("CUSTOMER DATA REQUEST (GDPR):", { 
         shop_id, 
         customer_id: customer?.id,
         customer_email: customer?.email 
@@ -127,7 +127,7 @@ export class GDPRWebhookController {
         return res.status(400).json({ error: "Missing shop_id or customer data" });
       }
 
-      // 👉 Recopilar TODOS los datos que tu app tiene sobre este cliente
+      // Recopilar TODOS los datos que tu app tiene sobre este cliente
       const customerData: any = {
         customer_id: customer.id,
         email: customer.email,
@@ -151,12 +151,12 @@ export class GDPRWebhookController {
         timestamp: new Date().toISOString()
       };
 
-      console.log(`✅ Customer ${customer.id} data request processed`);
+      console.log(`Customer ${customer.id} data request processed`);
 
       return res.status(200).json(customerData);
 
     } catch (error) {
-      console.error("❌ Error in customerDataRequest:", error);
+      console.error("Error in customerDataRequest:", error);
       return res.status(500).json({ 
         error: "Internal server error",
         message: String(error)
@@ -165,7 +165,7 @@ export class GDPRWebhookController {
   }
 
   /**
-   * 🧹 APP SUSPENDED (GDPR - CRÍTICO)
+   * APP SUSPENDED (GDPR - CRÍTICO)
    * Tiendanube lo llama cuando el dueño de la tienda
    * solicita eliminar TODOS los datos de la tienda
    * 
@@ -178,7 +178,7 @@ export class GDPRWebhookController {
     try {
       const { store_id } = req.body;
 
-      console.log("🧹 APP SUSPENDED (GDPR):", { store_id });
+      console.log("APP SUSPENDED (GDPR):", { store_id });
 
       if (!store_id) {
         return res.status(400).json({ error: "Missing store_id" });
@@ -187,14 +187,14 @@ export class GDPRWebhookController {
       const store = await StoreModel.findOne({ storeId: store_id });
 
       if (!store) {
-        console.log(`⚠️  Store ${store_id} not found`);
+        console.log(`Store ${store_id} not found`);
         return res.status(200).json({ 
           message: "Store not found, nothing to delete",
           store_id 
         });
       }
 
-      console.log(`🔴 DELETING ALL DATA for store: ${store.name} (${store_id})`);
+      console.log(`DELETING ALL DATA for store: ${store.name} (${store_id})`);
 
       // Borrar TODO relacionado con esta tienda
       await Promise.all([
@@ -207,7 +207,7 @@ export class GDPRWebhookController {
         // Si tienes más modelos, agrégalos aquí
       ]);
 
-      console.log(`✅ Store ${store_id} and ALL related data deleted`);
+      console.log(`Store ${store_id} and ALL related data deleted`);
 
       return res.status(200).json({ 
         message: "Store data deleted successfully",
@@ -216,7 +216,7 @@ export class GDPRWebhookController {
       });
 
     } catch (error) {
-      console.error("❌ Error in appSuspended:", error);
+      console.error("Error in appSuspended:", error);
       return res.status(500).json({ 
         error: "Internal server error",
         message: String(error)
