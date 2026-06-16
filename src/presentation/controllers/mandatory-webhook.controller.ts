@@ -15,12 +15,10 @@ export class MandatoryWebhookController {
   private static productService = new TiendanubeProductService();
   private static categoryService = new TiendanubeCategoryService();
 
-  // ============================================
   // WEBHOOKS DE INSTALACIÓN (OBLIGATORIOS)
-  // ============================================
 
   /**
-   * 🗑️ APP UNINSTALLED (CRÍTICO)
+   * APP UNINSTALLED (CRÍTICO)
    * Se llama cuando el usuario desinstala tu app
    * DEBES invalidar el access token
    */
@@ -28,7 +26,7 @@ export class MandatoryWebhookController {
     try {
       const { store_id } = req.body;
 
-      console.log("🗑️ APP UNINSTALLED webhook:", { store_id });
+      console.log("APP UNINSTALLED webhook:", { store_id });
 
       if (!store_id) {
         return res.status(400).json({ error: "Missing store_id" });
@@ -37,7 +35,7 @@ export class MandatoryWebhookController {
       const store = await StoreModel.findOne({ storeId: store_id });
 
       if (!store) {
-        console.log(`ℹ️  Store ${store_id} not found (already processed)`);
+        console.log(`Store ${store_id} not found (already processed)`);
         return res.status(200).json({ 
           received: true,
           message: "Store not found"
@@ -61,7 +59,7 @@ export class MandatoryWebhookController {
       ]);
       */
 
-      console.log(`✅ Store ${store_id} uninstall processed`);
+      console.log(`Store ${store_id} uninstall processed`);
 
       return res.status(200).json({ 
         success: true,
@@ -70,17 +68,15 @@ export class MandatoryWebhookController {
       });
 
     } catch (error) {
-      console.error("❌ Error in onAppUninstalled:", error);
+      console.error("Error in onAppUninstalled:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  // ============================================
   // WEBHOOKS DE PRODUCTOS (OBLIGATORIOS)
-  // ============================================
 
   /**
-   * 📦 PRODUCT CREATE
+   * PRODUCT CREATE
    */
   static async onProductCreate(req: Request, res: Response) {
     // Responder inmediatamente
@@ -94,7 +90,7 @@ export class MandatoryWebhookController {
   }
 
   /**
-   * 🔄 PRODUCT UPDATE
+   * PRODUCT UPDATE
    */
   static async onProductUpdate(req: Request, res: Response) {
     // Responder inmediatamente
@@ -108,13 +104,13 @@ export class MandatoryWebhookController {
   }
 
   /**
-   * 🗑️ PRODUCT DELETE
+   * PRODUCT DELETE
    */
   static async onProductDelete(req: Request, res: Response) {
     try {
       const { id: productId, store_id: storeId } = req.body;
 
-      console.log("🗑️ PRODUCT DELETE:", { product_id: productId, store_id: storeId });
+      console.log("PRODUCT DELETE:", { product_id: productId, store_id: storeId });
 
       if (!productId || !storeId) {
         return res.status(400).json({ error: "Missing product_id or store_id" });
@@ -133,17 +129,15 @@ export class MandatoryWebhookController {
       );
 
     } catch (error) {
-      console.error("❌ Error in onProductDelete:", error);
+      console.error("Error in onProductDelete:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  // ============================================
   // WEBHOOKS DE CATEGORÍAS (OBLIGATORIOS)
-  // ============================================
 
   /**
-   * 📁 CATEGORY CREATED
+   * CATEGORY CREATED
    */
   static async onCategoryCreated(req: Request, res: Response) {
     // Responder inmediatamente
@@ -157,7 +151,7 @@ export class MandatoryWebhookController {
   }
 
   /**
-   * 🔄 CATEGORY UPDATED
+   * CATEGORY UPDATED
    */
   static async onCategoryUpdated(req: Request, res: Response) {
     // Responder inmediatamente
@@ -171,13 +165,13 @@ export class MandatoryWebhookController {
   }
 
   /**
-   * 🗑️ CATEGORY DELETED
+   * CATEGORY DELETED
    */
   static async onCategoryDeleted(req: Request, res: Response) {
     try {
       const { id: categoryId, store_id: storeId } = req.body;
 
-      console.log("🗑️ CATEGORY DELETE:", { category_id: categoryId, store_id: storeId });
+      console.log("CATEGORY DELETE:", { category_id: categoryId, store_id: storeId });
 
       if (!categoryId || !storeId) {
         return res.status(400).json({ error: "Missing category_id or store_id" });
@@ -196,14 +190,12 @@ export class MandatoryWebhookController {
       );
 
     } catch (error) {
-      console.error("❌ Error in onCategoryDeleted:", error);
+      console.error("Error in onCategoryDeleted:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  // ============================================
   // MÉTODOS AUXILIARES
-  // ============================================
 
   /**
    * Sincroniza un producto (para create/update)
@@ -231,7 +223,7 @@ export class MandatoryWebhookController {
       );
 
     } catch (error) {
-      console.error("❌ Error syncing product:", error);
+      console.error("Error syncing product:", error);
     }
   }
 
@@ -261,7 +253,7 @@ export class MandatoryWebhookController {
       );
 
     } catch (error) {
-      console.error("❌ Error syncing category:", error);
+      console.error("Error syncing category:", error);
     }
   }
 }
