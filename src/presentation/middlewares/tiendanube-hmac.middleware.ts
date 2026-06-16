@@ -15,17 +15,17 @@ export const validateTiendanubeHmac = (
     const secret = envs.TIENDANUBE_CLIENT_SECRET;
     
     if (!secret) {
-      console.error("❌ Missing TIENDANUBE_CLIENT_SECRET");
+      console.error("Missing TIENDANUBE_CLIENT_SECRET");
       return res.status(500).json({ error: "Server configuration error" });
     }
 
     const receivedHmac = req.headers["x-hmac-sha256"];
 
     if (!receivedHmac || typeof receivedHmac !== "string") {
-      console.warn(`⚠️  Webhook received without HMAC header: ${req.url}`);
-      console.warn("   This might be a test webhook from Tiendanube during setup");
+      console.warn(`Webhook received without HMAC header: ${req.url}`);
+      console.warn("This might be a test webhook from Tiendanube during setup");
       
-      // ⚠️ WEBHOOKS CRÍTICOS: Siempre requieren HMAC, incluso en desarrollo
+      // WEBHOOKS CRÍTICOS: Siempre requieren HMAC, incluso en desarrollo
       const criticalWebhooks = [
         '/app/uninstalled',
         '/app/suspended',
@@ -36,8 +36,8 @@ export const validateTiendanubeHmac = (
       const isCriticalWebhook = criticalWebhooks.some(path => req.url.includes(path));
       
       if (isCriticalWebhook) {
-        console.error(`❌ CRITICAL: ${req.url} requires HMAC validation!`);
-        console.error("   This webhook was REJECTED to prevent accidental data loss");
+        console.error(`CRITICAL: ${req.url} requires HMAC validation!`);
+        console.error("This webhook was REJECTED to prevent accidental data loss");
         return res.status(401).json({ 
           error: "Missing HMAC header",
           message: "Critical webhooks require HMAC validation"
@@ -51,7 +51,7 @@ export const validateTiendanubeHmac = (
       }
       
       // En desarrollo, permitir pasar para testing (SOLO webhooks no críticos)
-      console.warn("   ⚠️  DEV MODE: Allowing webhook without HMAC for testing");
+      console.warn("DEV MODE: Allowing webhook without HMAC for testing");
       
       // Intentar parsear el body si viene como Buffer
       if (Buffer.isBuffer(req.body)) {
@@ -75,7 +75,7 @@ export const validateTiendanubeHmac = (
       try {
         req.body = JSON.parse(rawBody);
       } catch (parseError) {
-        console.error("❌ Error parsing webhook body:", parseError);
+        console.error("Error parsing webhook body:", parseError);
         return res.status(400).json({ error: "Invalid JSON body" });
       }
     } else {
@@ -91,16 +91,16 @@ export const validateTiendanubeHmac = (
 
     // Comparar HMACs
     if (generatedHmac !== receivedHmac) {
-      console.warn("⚠️  Invalid HMAC signature");
+      console.warn("Invalid HMAC signature");
       console.log("Expected:", generatedHmac);
       console.log("Received:", receivedHmac);
       return res.status(401).json({ error: "Invalid HMAC signature" });
     }
 
-    console.log("✅ HMAC validated successfully");
+    console.log("HMAC validated successfully");
     next();
   } catch (err) {
-    console.error("❌ HMAC validation error:", err);
+    console.error("HMAC validation error:", err);
     return res.status(500).json({ error: "Internal HMAC validation error" });
   }
 };
