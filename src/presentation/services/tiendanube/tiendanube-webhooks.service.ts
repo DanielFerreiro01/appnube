@@ -16,7 +16,7 @@ export class TiendanubeWebhookService {
     try {
       const service = new TiendanubeWebhookService();
       
-      console.log(`📋 Registering webhooks for store ${storeId}...`);
+      console.log(`Registering webhooks for store ${storeId}...`);
 
       // Primero, obtener webhooks existentes para evitar duplicados
       const existingWebhooks = await service.listWebhooks(storeId, accessToken);
@@ -64,13 +64,13 @@ export class TiendanubeWebhookService {
         try {
           // Skip si ya existe
           if (existingTopics.has(webhook.event)) {
-            console.log(`⏭️  Webhook ${webhook.event} already exists, skipping`);
+            console.log(`Webhook ${webhook.event} already exists, skipping`);
             results.skipped++;
             continue;
           }
 
           await service.createWebhook(storeId, accessToken, webhook.event, webhook.url);
-          console.log(`✅ Webhook registered: ${webhook.event}`);
+          console.log(`Webhook registered: ${webhook.event}`);
           results.registered++;
           
           // Rate limiting: esperar un poco entre requests
@@ -78,12 +78,12 @@ export class TiendanubeWebhookService {
           
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`❌ Error registering webhook ${webhook.event}:`, errorMsg);
+          console.error(`Error registering webhook ${webhook.event}:`, errorMsg);
           
           // Si es error 403 (scope faltante), dar más info
           if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
-            console.warn(`   ℹ️  Webhook ${webhook.event} requires additional permissions (scopes)`);
-            console.warn(`   Configure scopes in Tiendanube Partners Panel for your app`);
+            console.warn(`Webhook ${webhook.event} requires additional permissions (scopes)`);
+            console.warn(`Configure scopes in Tiendanube Partners Panel for your app`);
           }
           
           results.failed++;
@@ -91,20 +91,20 @@ export class TiendanubeWebhookService {
         }
       }
 
-      console.log(`\n📊 Webhook Registration Summary:`);
-      console.log(`   ✅ Registered: ${results.registered}`);
-      console.log(`   ⏭️  Skipped: ${results.skipped}`);
-      console.log(`   ❌ Failed: ${results.failed}`);
+      console.log(`\n Webhook Registration Summary:`);
+      console.log(`    Registered: ${results.registered}`);
+      console.log(`    Skipped: ${results.skipped}`);
+      console.log(`    Failed: ${results.failed}`);
       
       if (results.errors.length > 0) {
-        console.log(`\n⚠️  Errors:`);
+        console.log(`\n Errors:`);
         results.errors.forEach(err => console.log(`   - ${err}`));
       }
 
       return results;
       
     } catch (error) {
-      console.error("❌ Fatal error registering webhooks:", error);
+      console.error("Fatal error registering webhooks:", error);
       throw error;
     }
   }
@@ -166,7 +166,7 @@ export class TiendanubeWebhookService {
       
       // Si el webhook ya existe (409), no es error crítico
       if (response.status === 409) {
-        console.log(`⚠️  Webhook ${event} already exists`);
+        console.log(`Webhook ${event} already exists`);
         return { event, status: "already_exists" };
       }
       
@@ -185,14 +185,14 @@ export class TiendanubeWebhookService {
       const service = new TiendanubeWebhookService();
       const webhooks = await service.listWebhooks(storeId, accessToken);
 
-      console.log(`🗑️  Deleting ${webhooks.length} webhooks...`);
+      console.log(`Deleting ${webhooks.length} webhooks...`);
 
       for (const webhook of webhooks) {
         try {
           await service.deleteWebhook(storeId, accessToken, webhook.id);
-          console.log(`✅ Deleted webhook: ${webhook.event} (${webhook.id})`);
+          console.log(`Deleted webhook: ${webhook.event} (${webhook.id})`);
         } catch (error) {
-          console.error(`❌ Error deleting webhook ${webhook.id}:`, error);
+          console.error(`Error deleting webhook ${webhook.id}:`, error);
         }
       }
 
