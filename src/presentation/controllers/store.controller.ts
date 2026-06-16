@@ -21,9 +21,7 @@ export class StoreController {
     return res.status(500).json({ error: "Internal server error" });
   };
 
-  // ============================================
   // CRUD DE TIENDAS
-  // ============================================
 
   /**
    * Crear una nueva tienda manualmente (DEPRECADO - usar OAuth)
@@ -108,7 +106,7 @@ export class StoreController {
     try {
       if (updateStoreDto!.storeId || updateStoreDto!.accessToken) {
         console.warn(
-          `⚠️  Manual credential update attempted for store ${id}. OAuth is recommended.`
+          `Manual credential update attempted for store ${id}. OAuth is recommended.`
         );
       }
 
@@ -134,12 +132,10 @@ export class StoreController {
     }
   };
 
-  // ============================================
   // SINCRONIZACIÓN COMPLETA
-  // ============================================
 
   /**
-   * 🔄 Sincronizar TODO: productos Y categorías
+   * Sincronizar TODO: productos Y categorías
    * POST /api/stores/:id/sync
    * 
    * Este es el endpoint principal después de OAuth:
@@ -178,7 +174,7 @@ export class StoreController {
   };
 
   /**
-   * 🔄 Sincronizar solo productos
+   * Sincronizar solo productos
    * POST /api/stores/:id/sync/products
    */
   syncProducts = async (req: Request, res: Response) => {
@@ -202,7 +198,7 @@ export class StoreController {
   };
 
   /**
-   * 🔄 Sincronizar solo categorías
+   * Sincronizar solo categorías
    * POST /api/stores/:id/sync/categories
    */
   syncCategories = async (req: Request, res: Response) => {
@@ -225,12 +221,10 @@ export class StoreController {
     }
   };
 
-  // ============================================
   // ESTADÍSTICAS Y STATUS
-  // ============================================
 
   /**
-   * 📊 Obtener estadísticas de sincronización de una tienda
+   * Obtener estadísticas de sincronización de una tienda
    * GET /api/stores/:id/sync-status
    * 
    * Devuelve información sobre el estado de sincronización
@@ -275,12 +269,10 @@ export class StoreController {
     }
   };
 
-  // ============================================
-  // CATEGORÍAS (Nuevos endpoints)
-  // ============================================
+  // CATEGORÍAS
 
   /**
-   * 📁 Obtener categorías de una tienda
+   * Obtener categorías de una tienda
    * GET /api/stores/:id/categories
    * 
    * Devuelve categorías con árbol jerárquico
@@ -315,12 +307,10 @@ export class StoreController {
     }
   };
 
-  // ============================================
-  // PRODUCTOS (Endpoints legacy - mantener por compatibilidad)
-  // ============================================
+  // PRODUCTOS 
 
   /**
-   * 📦 Obtener productos de una tienda (DESDE TU DB LOCAL)
+   * Obtener productos de una tienda 
    * GET /api/stores/:mongoId/products?page=1&limit=20
    * 
    * @deprecated Use GET /api/products/:tiendanubeStoreId for advanced filtering
@@ -375,7 +365,7 @@ export class StoreController {
   };
 
   /**
-   * 📦 Obtener detalles completos de un producto
+   * Obtener detalles completos de un producto
    * GET /api/stores/:mongoId/products/:productId
    * 
    * @deprecated Use GET /api/products/:tiendanubeStoreId/:productId
