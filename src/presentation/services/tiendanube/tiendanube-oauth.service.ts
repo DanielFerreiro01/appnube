@@ -109,12 +109,12 @@ export class TiendanubeOAuthService {
   async handleCallback(code: string, state?: string) {
     try {
       // 1. Intercambiar code por token
-      console.log("🔐 Exchanging code for token...");
+      console.log("Exchanging code for token...");
       const tokenData = await this.exchangeCodeForToken(code);
-      console.log(`✅ Token received for store ${tokenData.user_id}`);
+      console.log(`Token received for store ${tokenData.user_id}`);
 
       // 2. Obtener información de la tienda
-      console.log("📋 Fetching store info...");
+      console.log("Fetching store info...");
       const storeInfo = await this.getStoreInfo(
         tokenData.user_id,
         tokenData.access_token
@@ -126,7 +126,7 @@ export class TiendanubeOAuthService {
 
       if (store) {
         // Actualizar tienda existente
-        console.log(`🔄 Updating existing store ${store.id}`);
+        console.log(`Updating existing store ${store.id}`);
         store.accessToken = tokenData.access_token;
         store.name = storeInfo.name?.es || storeInfo.name || store.name;
         
@@ -137,7 +137,7 @@ export class TiendanubeOAuthService {
         await store.save();
       } else {
         // Crear nueva tienda
-        console.log(`🆕 Creating new store for Tiendanube ID ${tokenData.user_id}`);
+        console.log(`Creating new store for Tiendanube ID ${tokenData.user_id}`);
         
         store = new StoreModel({
           name: storeInfo.name?.es ?? storeInfo.name ?? `Store ${tokenData.user_id}`,
@@ -153,16 +153,16 @@ export class TiendanubeOAuthService {
       }
 
       // 4. Registrar webhooks (crítico para mantener sincronización)
-      console.log("🔔 Registering webhooks...");
+      console.log("Registering webhooks...");
       await TiendanubeWebhookService.registerAll(
         tokenData.user_id,
         tokenData.access_token
       );
 
-      // 🆕 5. SINCRONIZACIÓN INICIAL (en background)
+      // 5. SINCRONIZACIÓN INICIAL (en background)
       console.log("🔄 Starting initial sync...");
       this.startInitialSync(store.id).catch(error => {
-        console.error("❌ Initial sync failed:", error);
+        console.error("Initial sync failed:", error);
         // No lanzar error para no interrumpir el flujo OAuth
       });
 
@@ -185,7 +185,7 @@ export class TiendanubeOAuthService {
   }
 
   /**
-   * 🆕 Inicia la sincronización inicial en background
+   * Inicia la sincronización inicial en background
    * Esto NO bloquea el flujo OAuth
    */
   private async startInitialSync(mongoStoreId: string): Promise<void> {
@@ -200,11 +200,11 @@ export class TiendanubeOAuthService {
       const result = await tiendanubeService.syncAll(mongoStoreId);
       
       console.log(
-        `[INITIAL-SYNC] ✅ Completed: ${result.summary.totalProducts} products, ` +
+        `[INITIAL-SYNC] Completed: ${result.summary.totalProducts} products, ` +
         `${result.summary.totalCategories} categories`
       );
     } catch (error) {
-      console.error(`[INITIAL-SYNC] ❌ Error:`, error);
+      console.error(`[INITIAL-SYNC] Error:`, error);
       // No lanzar el error - la sincronización es en background
     }
   }
