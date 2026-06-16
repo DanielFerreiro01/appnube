@@ -61,7 +61,7 @@ export class StoreRoutes {
     // ============================================
 
     /**
-     * 🔄 Sincronizar TODO: productos Y categorías
+     * Sincronizar TODO: productos Y categorías
      * POST /api/stores/:id/sync
      * 
      * Este es el endpoint principal después de OAuth
@@ -69,19 +69,19 @@ export class StoreRoutes {
     router.post('/:id/sync', controller.syncAll);
 
     /**
-     * 🔄 Sincronizar solo productos
+     * Sincronizar solo productos
      * POST /api/stores/:id/sync/products
      */
     router.post('/:id/sync/products', controller.syncProducts);
 
     /**
-     * 🔄 Sincronizar solo categorías
+     * Sincronizar solo categorías
      * POST /api/stores/:id/sync/categories
      */
     router.post('/:id/sync/categories', controller.syncCategories);
 
     /**
-     * 📊 Obtener estado de sincronización
+     * Obtener estado de sincronización
      * GET /api/stores/:id/sync-status
      */
     router.get('/:id/sync-status', controller.getSyncStatus);
@@ -91,7 +91,7 @@ export class StoreRoutes {
     // ============================================
 
     /**
-     * 📁 Obtener categorías con árbol jerárquico
+     * Obtener categorías con árbol jerárquico
      * GET /api/stores/:id/categories
      */
     router.get('/:id/categories', controller.getStoreCategories);
@@ -101,7 +101,7 @@ export class StoreRoutes {
     // ============================================
 
     /**
-     * 📦 Obtener productos de una tienda
+     * Obtener productos de una tienda
      * GET /api/stores/:id/products?page=1&limit=20
      * 
      * DEPRECADO: Usar GET /api/products/:tiendanubeStoreId
@@ -109,7 +109,7 @@ export class StoreRoutes {
     router.get('/:id/products', controller.getStoreProducts);
 
     /**
-     * 📦 Obtener detalles de un producto
+     * Obtener detalles de un producto
      * GET /api/stores/:id/products/:productId
      * 
      * DEPRECADO: Usar GET /api/products/:tiendanubeStoreId/:productId
