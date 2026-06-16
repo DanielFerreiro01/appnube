@@ -24,7 +24,7 @@ export class ProductController {
     const { storeId } = req.params;
     const { page = 1, limit = 20, sort = "newest" } = req.query;
 
-    // ✅ NUEVO: Validar filtros con DTO
+    // Validar filtros con DTO
     const [filterError, filtersDto] = ProductFiltersDTO.create(req.query);
     if (filterError) return res.status(400).json({ error: filterError });
 
